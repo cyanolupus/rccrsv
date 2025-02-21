@@ -204,15 +204,31 @@ stmt(Token** self)
     return new_node_triplet(ND_WHILE, cond, body, NULL);
   }
   if (consume(self, "for")) {
+    Node *init = NULL, *cond = NULL, *inc = NULL;
     expect(self, "(");
-    Node* init = expr(self);
-    expect(self, ";");
-    Node* cond = expr(self);
-    expect(self, ";");
-    Node* inc = expr(self);
-    expect(self, ")");
+    if (!consume(self, ";")) {
+      init = expr(self);
+      expect(self, ";");
+    }
+    if (!consume(self, ";")) {
+      cond = expr(self);
+      expect(self, ";");
+    }
+    if (!consume(self, ")")) {
+      inc = expr(self);
+      expect(self, ")");
+    }
     Node* body = stmt(self);
     return new_node_quadruplet(ND_FOR, init, cond, inc, body);
+  }
+  if (consume(self, "{")) {
+    Node* node = new_node(ND_BLOCK, NULL, NULL);
+    Node* cur = node;
+    while (!consume(self, "}")) {
+      cur->rhs = stmt(self);
+      cur = cur->rhs;
+    }
+    return node;
   }
   Node* node = expr(self);
   expect(self, ";");

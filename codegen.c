@@ -15,6 +15,8 @@ gen_lval(Node* node)
 void
 gen(Node* node)
 {
+  if (node == NULL)
+    return;
   switch (node->kind) {
     case ND_NUM:
       printf("  mov x0, %d\n", node->val);
@@ -84,6 +86,12 @@ gen(Node* node)
       gen(node->rrrhs);
       printf("  b .Lbegin%d\n", jmpcnt);
       printf(".Lend%d:\n", jmpcnt);
+      return;
+    case ND_BLOCK:
+      for (Node* cur = node->rhs; cur; cur = cur->rhs) {
+        gen(cur);
+        printf("  ldr x0, [sp], #16\n");
+      }
       return;
     default:
       break;
