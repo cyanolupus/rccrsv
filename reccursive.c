@@ -47,22 +47,32 @@ struct Token
   Token* next;
   int val;
   char* str;
+  int len;
 };
 
 bool
-consume(Token** self, char op)
+consume(Token** self, char* op)
 {
-  if ((*self)->kind != TK_RESERVED || (*self)->str[0] != op)
+  if ((*self)->kind != TK_RESERVED || strlen(op) != (*self)->len ||
+      memcmp((*self)->str, op, (*self)->len))
     return false;
   *self = (*self)->next;
   return true;
 }
 
 void
-expect(Token** self, char op)
+expect(Token** self, char* op)
 {
-  if ((*self)->kind != TK_RESERVED || (*self)->str[0] != op)
-    error_at((*self)->str, "Token is not '%c', but '%c'", op, (*self)->str[0]);
+  if ((*self)->kind != TK_RESERVED)
+    error_at((*self)->str, "Token is not RESERVED");
+  else if (strlen(op) != (*self)->len)
+    error_at((*self)->str, "Token length is not %d", strlen(op));
+  else if (memcmp((*self)->str, op, (*self)->len)) {
+    char* token_str = calloc(1, (*self)->len + 1);
+    strncpy(token_str, (*self)->str, (*self)->len);
+    token_str[(*self)->len] = '\0';
+    error_at((*self)->str, "Token is not '%s', but '%s'", op, token_str);
+  }
   *self = (*self)->next;
 }
 
@@ -86,21 +96,22 @@ void
 view_token(Token* self)
 {
   while (self->kind != TK_EOF) {
-    printf("kind: %d, val: %d, str: %s, char: %c\n",
-           self->kind,
-           self->val,
-           self->str,
-           self->str[0]);
+    char* token_str = calloc(1, self->len + 1);
+    strncpy(token_str, self->str, self->len);
+    token_str[self->len] = '\0';
+    fprintf(
+      stderr, "kind: %d, val: %d, str: %s\n", self->kind, self->val, token_str);
     self = self->next;
   }
 }
 
 Token*
-new_token(TokenKind kind, Token* cur, char* str)
+new_token(TokenKind kind, Token* cur, char* str, int len)
 {
   Token* tok = calloc(1, sizeof(Token));
   tok->kind = kind;
   tok->str = str;
+  tok->len = len;
   cur->next = tok;
   return tok;
 }
@@ -118,21 +129,45 @@ tokenize(char* p)
       continue;
     }
 
-    if (strchr("+-*/()", *p)) {
-      cur = new_token(TK_RESERVED, cur, p++);
+    if (strncmp(p, "<<=", 3) == 0 || strncmp(p, ">>=", 3) == 0) {
+      cur = new_token(TK_RESERVED, cur, p, 2);
+      p += 2;
+      continue;
+    }
+
+    if (strncmp(p, "==", 2) == 0 || strncmp(p, "!=", 2) == 0 ||
+        strncmp(p, "<=", 2) == 0 || strncmp(p, ">=", 2) == 0 ||
+        strncmp(p, "+=", 2) == 0 || strncmp(p, "-=", 2) == 0 ||
+        strncmp(p, "*=", 2) == 0 || strncmp(p, "/=", 2) == 0 ||
+        strncmp(p, "%=", 2) == 0 || strncmp(p, "&=", 2) == 0 ||
+        strncmp(p, "^=", 2) == 0 || strncmp(p, "|=", 2) == 0 ||
+        strncmp(p, "?:", 2) == 0 || strncmp(p, "->", 2) == 0 ||
+        strncmp(p, "||", 2) == 0 || strncmp(p, "&&", 2) == 0 ||
+        strncmp(p, ">>", 2) == 0 || strncmp(p, "<<", 2) == 0 ||
+        strncmp(p, "++", 2) == 0 || strncmp(p, "--", 2) == 0) {
+      cur = new_token(TK_RESERVED, cur, p, 2);
+      p += 2;
+      continue;
+    }
+
+    if (strchr("+-*/%()<>=,&^|!~.[]", *p)) {
+      cur = new_token(TK_RESERVED, cur, p, 1);
+      p++;
       continue;
     }
 
     if (isdigit(*p)) {
-      cur = new_token(TK_NUM, cur, p);
+      cur = new_token(TK_NUM, cur, p, 0);
+      char* q = p;
       cur->val = strtol(p, &p, 10);
+      cur->len = p - q;
       continue;
     }
 
     error_at(p, "invalid token");
   }
 
-  new_token(TK_EOF, cur, p);
+  new_token(TK_EOF, cur, p, 0);
   return head.next;
 }
 
@@ -142,6 +177,10 @@ typedef enum
   ND_SUB,
   ND_MUL,
   ND_DIV,
+  ND_EQ,
+  ND_NE,
+  ND_LT,
+  ND_LE,
   ND_NUM,
 } NodeKind;
 
@@ -175,19 +214,67 @@ new_node_num(int val)
 Node*
 expr(Token** self);
 Node*
+equality(Token** self);
+Node*
+relational(Token** self);
+Node*
+add(Token** self);
+Node*
 mul(Token** self);
+Node*
+unary(Token** self);
 Node*
 primary(Token** self);
 
 Node*
 expr(Token** self)
 {
+  return equality(self);
+}
+
+Node*
+equality(Token** self)
+{
+  Node* node = relational(self);
+
+  for (;;) {
+    if (consume(self, "=="))
+      node = new_node(ND_EQ, node, relational(self), 0);
+    else if (consume(self, "!="))
+      node = new_node(ND_NE, node, relational(self), 0);
+    else
+      return node;
+  }
+}
+
+Node*
+relational(Token** self)
+{
+  Node* node = add(self);
+
+  for (;;) {
+    if (consume(self, "<"))
+      node = new_node(ND_LT, node, add(self), 0);
+    else if (consume(self, "<="))
+      node = new_node(ND_LE, node, add(self), 0);
+    else if (consume(self, ">"))
+      node = new_node(ND_LT, add(self), node, 0);
+    else if (consume(self, ">="))
+      node = new_node(ND_LE, add(self), node, 0);
+    else
+      return node;
+  }
+}
+
+Node*
+add(Token** self)
+{
   Node* node = mul(self);
 
   for (;;) {
-    if (consume(self, '+'))
+    if (consume(self, "+"))
       node = new_node(ND_ADD, node, mul(self), 0);
-    else if (consume(self, '-'))
+    else if (consume(self, "-"))
       node = new_node(ND_SUB, node, mul(self), 0);
     else
       return node;
@@ -197,24 +284,34 @@ expr(Token** self)
 Node*
 mul(Token** self)
 {
-  Node* node = primary(self);
+  Node* node = unary(self);
 
   for (;;) {
-    if (consume(self, '*'))
-      node = new_node(ND_MUL, node, primary(self), 0);
-    else if (consume(self, '/'))
-      node = new_node(ND_DIV, node, primary(self), 0);
+    if (consume(self, "*"))
+      node = new_node(ND_MUL, node, unary(self), 0);
+    else if (consume(self, "/"))
+      node = new_node(ND_DIV, node, unary(self), 0);
     else
       return node;
   }
 }
 
 Node*
+unary(Token** self)
+{
+  if (consume(self, "+"))
+    return primary(self);
+  if (consume(self, "-"))
+    return new_node(ND_SUB, new_node_num(0), primary(self), 0);
+  return primary(self);
+}
+
+Node*
 primary(Token** self)
 {
-  if (consume(self, '(')) {
+  if (consume(self, "(")) {
     Node* node = expr(self);
-    expect(self, ')');
+    expect(self, ")");
     return node;
   }
 
@@ -233,8 +330,8 @@ gen(Node* node)
   gen(node->lhs);
   gen(node->rhs);
 
-  printf("  ldr x0, [sp], #16\n");
   printf("  ldr x1, [sp], #16\n");
+  printf("  ldr x0, [sp], #16\n");
 
   switch (node->kind) {
     case ND_ADD:
@@ -249,9 +346,72 @@ gen(Node* node)
     case ND_DIV:
       printf("  sdiv x0, x0, x1\n");
       break;
+    case ND_EQ:
+      printf("  cmp x0, x1\n");
+      printf("  cset x0, EQ\n");
+      break;
+    case ND_NE:
+      printf("  cmp x0, x1\n");
+      printf("  cset x0, NE\n");
+      break;
+    case ND_LE:
+      printf("  cmp x0, x1\n");
+      printf("  cset x0, LE\n");
+      break;
+    case ND_LT:
+      printf("  cmp x0, x1\n");
+      printf("  cset x0, LT\n");
+      break;
+    default:
+      error("NodeKind is not supported %d", node->kind);
   }
 
   printf("  str x0, [sp, #-16]!\n");
+}
+
+void
+view_node(Node* node, int depth)
+{
+  if (node == NULL)
+    return;
+
+  for (int i = 0; i < depth - 1; i++)
+    fprintf(stderr, "   ");
+  if (depth > 0)
+    fprintf(stderr, " |-");
+  switch (node->kind) {
+    case ND_ADD:
+      fprintf(stderr, "[+]\n");
+      break;
+    case ND_SUB:
+      fprintf(stderr, "[-]\n");
+      break;
+    case ND_MUL:
+      fprintf(stderr, "[*]\n");
+      break;
+    case ND_DIV:
+      fprintf(stderr, "[/]\n");
+      break;
+    case ND_EQ:
+      fprintf(stderr, "[==]\n");
+      break;
+    case ND_NE:
+      fprintf(stderr, "[!=]\n");
+      break;
+    case ND_LT:
+      fprintf(stderr, "[<]\n");
+      break;
+    case ND_LE:
+      fprintf(stderr, "[<=]\n");
+      break;
+    case ND_NUM:
+      fprintf(stderr, "%d\n", node->val);
+      break;
+    default:
+      break;
+  }
+  view_node(node->lhs, depth + 1);
+  view_node(node->rhs, depth + 1);
 }
 
 int
