@@ -88,6 +88,8 @@ struct Node
   Node* rrhs;
   Node* rrrhs;
   LVar* lvar;
+  int argv[6];
+  int argc;
 };
 
 Node*

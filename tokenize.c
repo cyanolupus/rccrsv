@@ -19,7 +19,7 @@ expect(Token** self, char* op)
   else if (strlen(op) != (*self)->len)
     error_at((*self)->str, "Token length is not %d", strlen(op));
   else if (memcmp((*self)->str, op, (*self)->len)) {
-    char* token_str = calloc(1, (*self)->len + 1);
+    char* token_str = calloc((*self)->len + 1, sizeof(char));
     strncpy(token_str, (*self)->str, (*self)->len);
     token_str[(*self)->len] = '\0';
     error_at((*self)->str, "Token is not '%s', but '%s'", op, token_str);
@@ -57,7 +57,7 @@ void
 view_token(Token* self)
 {
   while (self->kind != TK_EOF) {
-    char* token_str = calloc(1, self->len + 1);
+    char* token_str = calloc(self->len + 1, sizeof(char));
     strncpy(token_str, self->str, self->len);
     token_str[self->len] = '\0';
     fprintf(

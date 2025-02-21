@@ -145,6 +145,15 @@ gen(Node* node)
       printf("  cmp x0, x1\n");
       printf("  cset x0, LT\n");
       break;
+    case ND_CALL:
+      for (int i = 0; i < node->argc; i++) {
+        printf("  mov x%d, %d\n", i, node->argv[i]);
+      }
+      char* funcname = calloc(node->lvar->len + 1, sizeof(char));
+      strncpy(funcname, node->lvar->name, node->lvar->len);
+      funcname[node->lvar->len] = '\0';
+      printf("  bl _%s\n", funcname);
+      break;
     default:
       error("NodeKind is not supported %d", node->kind);
   }

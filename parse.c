@@ -33,12 +33,17 @@ new_node_lvar(LVar* lvar)
 }
 
 Node*
-new_node_call(LVar* lvar)
+new_node_call(LVar* lvar, int argc, int* argv)
 {
+  if (argc > 6)
+    error("Too many arguments");
   Node* node = calloc(1, sizeof(Node));
   node->kind = ND_CALL;
   node->val = 0;
   node->lvar = lvar;
+  node->argc = argc;
+  for (int i = 0; i < argc; i++)
+    node->argv[i] = argv[i];
   return node;
 }
 
@@ -81,6 +86,17 @@ primary(Token** self)
       lvar = new_lvar(tok->str, tok->len, program->locals->offset + 16);
       add_lvar(lvar);
     }
+    if (consume(self, "(")) {
+      int argc = 0;
+      int argv[6];
+      while (!consume(self, ")")) {
+        if (argc > 0)
+          expect(self, ",");
+        argv[argc++] = expect_number(self);
+      }
+      return new_node_call(lvar, argc, argv);
+    }
+
     return new_node_lvar(lvar);
   }
 

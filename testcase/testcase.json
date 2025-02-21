@@ -253,5 +253,15 @@
 		"name": "FOR_BLOCK4",
 		"input": "a=1;for(i=1;i<5;i=i+1){a=a*(i+1);}a;",
 		"output": 120
+	},
+	{
+		"name": "FUNC0",
+		"input": "foo();",
+		"output": 123
+	},
+	{
+		"name": "FUNC1",
+		"input": "bar(4,5);",
+		"output": 9
 	}
 ]
