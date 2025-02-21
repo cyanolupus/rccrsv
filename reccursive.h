@@ -5,6 +5,8 @@
 #include <stdbool.h>
 #include <string.h>
 
+int jmpcnt;
+
 // tokenize.c
 typedef enum
 {
@@ -12,7 +14,6 @@ typedef enum
   TK_IDENT,
   TK_NUM,
   TK_EOF,
-  TK_RETURN,
 } TokenKind;
 
 typedef struct Token Token;
@@ -59,6 +60,10 @@ typedef enum
   ND_LVAR,
   ND_RETURN,
   ND_NUM,
+  ND_IF,
+  ND_ELSE,
+  ND_WHILE,
+  ND_FOR,
 } NodeKind;
 
 typedef struct Node Node;
@@ -70,6 +75,8 @@ struct Node
   Node* rhs;
   int val;
   int offset;
+  Node* rrhs;
+  Node* rrrhs;
 };
 
 Node*

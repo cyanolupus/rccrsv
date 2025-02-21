@@ -42,6 +42,49 @@ gen(Node* node)
       printf("  ldp fp, lr, [sp], #16\n");
       printf("  ret\n");
       return;
+    case ND_IF:
+      jmpcnt++;
+      gen(node->lhs);
+      printf("  ldr x0, [sp], #16\n");
+      printf("  cmp x0, #0\n");
+
+      if (node->rrhs) {
+        printf("  beq .Lelse%d\n", jmpcnt);
+        gen(node->rhs);
+        printf("  b .Lend%d\n", jmpcnt);
+        printf(".Lelse%d:\n", jmpcnt);
+        gen(node->rrhs);
+        printf(".Lend%d:\n", jmpcnt);
+      } else {
+        printf("  beq .Lend%d\n", jmpcnt);
+        gen(node->rhs);
+        printf(".Lend%d:\n", jmpcnt);
+      }
+      return;
+    case ND_WHILE:
+      jmpcnt++;
+      printf(".Lbegin%d:\n", jmpcnt);
+      gen(node->lhs);
+      printf("  ldr x0, [sp], #16\n");
+      printf("  cmp x0, #0\n");
+      printf("  beq .Lend%d\n", jmpcnt);
+      gen(node->rhs);
+      printf("  b .Lbegin%d\n", jmpcnt);
+      printf(".Lend%d:\n", jmpcnt);
+      return;
+    case ND_FOR:
+      jmpcnt++;
+      gen(node->lhs);
+      printf(".Lbegin%d:\n", jmpcnt);
+      gen(node->rhs);
+      printf("  ldr x0, [sp], #16\n");
+      printf("  cmp x0, #0\n");
+      printf("  beq .Lend%d\n", jmpcnt);
+      gen(node->rrhs);
+      gen(node->rrrhs);
+      printf("  b .Lbegin%d\n", jmpcnt);
+      printf(".Lend%d:\n", jmpcnt);
+      return;
     default:
       break;
   }

@@ -163,5 +163,45 @@
 		"name": "RET1",
 		"input": "return (1+2)*3+4*5;",
 		"output": 29
+	},
+	{
+		"name": "IF0",
+		"input": "if(1) return 123;",
+		"output": 123
+	},
+	{
+		"name": "IF1",
+		"input": "if(0 != 1) return 123;",
+		"output": 123
+	},
+	{
+		"name": "IF_ELSE0",
+		"input": "if(1) return 123; else return 234;",
+		"output": 123
+	},
+	{
+		"name": "IF_ELSE1",
+		"input": "if(0) return 123; else return 234;",
+		"output": 234
+	},
+	{
+		"name": "WHILE0",
+		"input": "a=0;while(a<10) a=a+1; a;",
+		"output": 10
+	},
+	{
+		"name": "WHILE1",
+		"input": "a=0;while(a<10) a=a+1; b=0; while(b<10) b=b+1; a+b;",
+		"output": 20
+	},
+	{
+		"name": "FOR0",
+		"input": "a=0;for(i=0;i<10;i=i+1) a=a+1; a;",
+		"output": 10
+	},
+	{
+		"name": "FOR1",
+		"input": "a=0;for(i=0;i<10;i=i+1) a=a+1; b=0; for(i=0;i<10;i=i+1) b=b+1; a+b;",
+		"output": 20
 	}
 ]

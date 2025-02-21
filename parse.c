@@ -18,8 +18,6 @@ new_node_num(int val)
 {
   Node* node = calloc(1, sizeof(Node));
   node->kind = ND_NUM;
-  node->lhs = NULL;
-  node->rhs = NULL;
   node->val = val;
   node->offset = 0;
   return node;
@@ -30,10 +28,39 @@ new_node_lvar(int offset)
 {
   Node* node = calloc(1, sizeof(Node));
   node->kind = ND_LVAR;
-  node->lhs = NULL;
-  node->rhs = NULL;
   node->val = 0;
   node->offset = offset;
+  return node;
+}
+
+Node*
+new_node_triplet(NodeKind kind, Node* lhs, Node* rhs, Node* rrhs)
+{
+  Node* node = calloc(1, sizeof(Node));
+  node->kind = kind;
+  node->lhs = lhs;
+  node->rhs = rhs;
+  node->rrhs = rrhs;
+  node->val = 0;
+  node->offset = 0;
+  return node;
+}
+
+Node*
+new_node_quadruplet(NodeKind kind,
+                    Node* lhs,
+                    Node* rhs,
+                    Node* rrhs,
+                    Node* rrrhs)
+{
+  Node* node = calloc(1, sizeof(Node));
+  node->kind = kind;
+  node->lhs = lhs;
+  node->rhs = rhs;
+  node->rrhs = rrhs;
+  node->rrrhs = rrrhs;
+  node->val = 0;
+  node->offset = 0;
   return node;
 }
 
@@ -149,6 +176,8 @@ expr(Token** self)
   return assign(self);
 }
 
+int jmpcnt = 0;
+
 Node*
 stmt(Token** self)
 {
@@ -156,11 +185,38 @@ stmt(Token** self)
     Node* node = new_node(ND_RETURN, expr(self), NULL);
     expect(self, ";");
     return node;
-  } else {
-    Node* node = expr(self);
-    expect(self, ";");
-    return node;
   }
+  if (consume(self, "if")) {
+    expect(self, "(");
+    Node* cond = expr(self);
+    expect(self, ")");
+    Node* then = stmt(self);
+    Node* els = NULL;
+    if (consume(self, "else"))
+      els = stmt(self);
+    return new_node_triplet(ND_IF, cond, then, els);
+  }
+  if (consume(self, "while")) {
+    expect(self, "(");
+    Node* cond = expr(self);
+    expect(self, ")");
+    Node* body = stmt(self);
+    return new_node_triplet(ND_WHILE, cond, body, NULL);
+  }
+  if (consume(self, "for")) {
+    expect(self, "(");
+    Node* init = expr(self);
+    expect(self, ";");
+    Node* cond = expr(self);
+    expect(self, ";");
+    Node* inc = expr(self);
+    expect(self, ")");
+    Node* body = stmt(self);
+    return new_node_quadruplet(ND_FOR, init, cond, inc, body);
+  }
+  Node* node = expr(self);
+  expect(self, ";");
+  return node;
 }
 
 LVar*
