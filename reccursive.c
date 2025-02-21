@@ -1,15 +1,125 @@
+#include <ctype.h>
+#include <stdarg.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+
+typedef enum {
+    TK_RESERVED,
+    TK_NUM,
+    TK_EOF,
+} TokenKind;
+
+void error(char *fmt, ...) {
+    va_list ap;
+    va_start(ap, fmt);
+    vfprintf(stderr, fmt, ap);
+    fprintf(stderr, "\n");
+    exit(1);
+}
+
+typedef struct Token Token;
+
+struct Token {
+    TokenKind kind;
+    Token *next;
+    int val;
+    char *str;
+};
+
+bool consume(Token** self, char op) {
+    if ((*self)->kind != TK_RESERVED || (*self)->str[0] != op)
+        return false;
+    *self = (*self)->next;
+    return true;
+}
+
+void expect(Token** self, char op) {
+    if ((*self)->kind != TK_RESERVED || (*self)->str[0] != op)
+        error("Token is not '%c', but '%c'", op, (*self)->str[0]);
+    *self = (*self)->next;
+}
+
+int expect_number(Token **self) {
+    if ((*self)->kind != TK_NUM)
+        error("Token is not a number");
+    int val = (*self)->val;
+    *self = (*self)->next;
+    return val;
+}
+
+bool at_eof(Token *self) {
+    return self->kind == TK_EOF;
+}
+
+void view_token(Token *self) {
+    while (self->kind != TK_EOF) {
+        printf("kind: %d, val: %d, str: %s, char: %c\n", self->kind, self->val, self->str, self->str[0]);
+        self = self->next;
+    }
+}
+
+Token *new_token(TokenKind kind, Token *cur, char *str) {
+  Token *tok = calloc(1, sizeof(Token));
+  tok->kind = kind;
+  tok->str = str;
+  cur->next = tok;
+  return tok;
+}
+
+Token *tokenize(char *p) {
+    Token head;
+    head.next = NULL;
+    Token *cur = &head;
+
+    while (*p) {
+        if (isspace(*p)) {
+            p++;
+            continue;
+        }
+
+        if (*p == '+' || *p == '-') {
+            cur = new_token(TK_RESERVED, cur, p++);
+            continue;
+        }
+
+        if (isdigit(*p)) {
+            cur = new_token(TK_NUM, cur, p);
+            cur->val = strtol(p, &p, 10);
+            continue;
+        }
+
+        error("cant tokenize");
+    }
+
+    new_token(TK_EOF, cur, p);
+    return head.next;
+}
 
 int main(int argc, char **argv) {
     if (argc != 2) {
-        printf("Usage: %s num\n", argv[0]);
+        printf("Usage: %s <expr>\n", argv[0]);
         return 1;
     }
 
+    Token *token;
+    token = tokenize(argv[1]);
+
     printf(".global _main\n");
     printf("_main:\n");
-    printf("  mov x0, %d\n", atoi(argv[1]));
+    printf("  mov x0, %d\n", expect_number(&token));
+
+    while (!at_eof(token)) {
+        if (consume(&token, '+')) {
+            printf("  add x0, x0, %d\n", expect_number(&token));
+            continue;
+        }
+
+        expect(&token, '-');
+        printf("  sub x0, x0, %d\n", expect_number(&token));
+    }
+
     printf("  ret\n");
     return 0;
 }
