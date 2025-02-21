@@ -1,7 +1,12 @@
 APP_NAME=reccursive
 CFLAGS=-std=c11 -g
+SRCS=$(wildcard *.c)
+OBJS=$(SRCS:.c=.o)
 
-reccursive: reccursive.c
+reccursive: $(OBJS)
+	$(CC) -o $@ $^ $(CFLAGS)
+
+$(OBJS): reccursive.h
 
 reccursive_test:
 	@$(MAKE) assert LEFT_PARAM="1+1" RIGHT_PARAM=2
