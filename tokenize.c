@@ -26,6 +26,16 @@ expect(Token** self, char* op)
   *self = (*self)->next;
 }
 
+Token*
+consume_ident(Token** self)
+{
+  if ((*self)->kind != TK_IDENT)
+    return NULL;
+  Token* tok = *self;
+  *self = (*self)->next;
+  return tok;
+}
+
 int
 expect_number(Token** self)
 {
@@ -100,9 +110,8 @@ tokenize(char* p)
       continue;
     }
 
-    if (strchr("+-*/%()<>=,&^|!~.[]", *p)) {
-      cur = new_token(TK_RESERVED, cur, p, 1);
-      p++;
+    if (strchr("+-*/%()<>=,&^|!~.[];", *p)) {
+      cur = new_token(TK_RESERVED, cur, p++, 1);
       continue;
     }
 
@@ -111,6 +120,11 @@ tokenize(char* p)
       char* q = p;
       cur->val = strtol(p, &p, 10);
       cur->len = p - q;
+      continue;
+    }
+
+    if ('a' <= *p && *p <= 'z') {
+      cur = new_token(TK_IDENT, cur, p++, 1);
       continue;
     }
 

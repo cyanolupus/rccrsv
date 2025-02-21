@@ -9,6 +9,7 @@
 typedef enum
 {
   TK_RESERVED,
+  TK_IDENT,
   TK_NUM,
   TK_EOF,
 } TokenKind;
@@ -28,16 +29,19 @@ Token*
 tokenize(char* p);
 
 bool
-consume(Token** cur, char* op);
+consume(Token** self, char* op);
 
 void
-expect(Token** cur, char* op);
+expect(Token** self, char* op);
+
+Token*
+consume_ident(Token** self);
 
 int
-expect_number(Token** cur);
+expect_number(Token** self);
 
 bool
-at_eof(Token* cur);
+at_eof(Token* self);
 
 // parse.c
 typedef enum
@@ -50,6 +54,8 @@ typedef enum
   ND_NE,
   ND_LT,
   ND_LE,
+  ND_ASSIGN,
+  ND_LVAR,
   ND_NUM,
 } NodeKind;
 
@@ -61,10 +67,22 @@ struct Node
   Node* lhs;
   Node* rhs;
   int val;
+  int offset;
 };
 
 Node*
 expr(Token** self);
+
+struct Program
+{
+  Node* code[100];
+  int len;
+};
+
+typedef struct Program Program;
+
+Program*
+new_program(Token** self);
 
 // codegen.c
 void

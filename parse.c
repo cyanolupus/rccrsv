@@ -1,72 +1,78 @@
 #include "reccursive.h"
 
 Node*
-new_node(NodeKind kind, Node* lhs, Node* rhs, int val)
+new_node(NodeKind kind, Node* lhs, Node* rhs)
 {
   Node* node = calloc(1, sizeof(Node));
   node->kind = kind;
   node->lhs = lhs;
   node->rhs = rhs;
-  node->val = val;
+  node->val = 0;
+  node->offset = 0;
   return node;
 }
 
 Node*
 new_node_num(int val)
 {
-  return new_node(ND_NUM, NULL, NULL, val);
+  Node* node = calloc(1, sizeof(Node));
+  node->kind = ND_NUM;
+  node->lhs = NULL;
+  node->rhs = NULL;
+  node->val = val;
+  node->offset = 0;
+  return node;
 }
 
 Node*
-expr(Token** self);
-Node*
-equality(Token** self);
-Node*
-relational(Token** self);
-Node*
-add(Token** self);
-Node*
-mul(Token** self);
-Node*
-unary(Token** self);
-Node*
-primary(Token** self);
-
-Node*
-expr(Token** self)
+new_node_lvar(int offset)
 {
-  return equality(self);
+  Node* node = calloc(1, sizeof(Node));
+  node->kind = ND_LVAR;
+  node->lhs = NULL;
+  node->rhs = NULL;
+  node->val = 0;
+  node->offset = offset;
+  return node;
 }
 
 Node*
-equality(Token** self)
+primary(Token** self)
 {
-  Node* node = relational(self);
-
-  for (;;) {
-    if (consume(self, "=="))
-      node = new_node(ND_EQ, node, relational(self), 0);
-    else if (consume(self, "!="))
-      node = new_node(ND_NE, node, relational(self), 0);
-    else
-      return node;
+  Token* tok = consume_ident(self);
+  if (tok) {
+    return new_node_lvar((tok->str[0] - 'a' + 1) * 8);
   }
+
+  if (consume(self, "(")) {
+    Node* node = expr(self);
+    expect(self, ")");
+    return node;
+  }
+
+  return new_node_num(expect_number(self));
 }
 
 Node*
-relational(Token** self)
+unary(Token** self)
 {
-  Node* node = add(self);
+  if (consume(self, "+"))
+    return primary(self);
+  if (consume(self, "-"))
+    return new_node(ND_SUB, new_node_num(0), primary(self));
+  return primary(self);
+}
+
+Node*
+mul(Token** self)
+{
+  Node* node = unary(self);
 
   for (;;) {
-    if (consume(self, "<"))
-      node = new_node(ND_LT, node, add(self), 0);
-    else if (consume(self, "<="))
-      node = new_node(ND_LE, node, add(self), 0);
-    else if (consume(self, ">"))
-      node = new_node(ND_LT, add(self), node, 0);
-    else if (consume(self, ">="))
-      node = new_node(ND_LE, add(self), node, 0);
+    if (consume(self, "*"))
+      node = new_node(ND_MUL, node, unary(self));
+    else if (consume(self, "/"))
+      node = new_node(ND_DIV, node, unary(self));
     else
       return node;
   }
@@ -79,49 +85,81 @@ add(Token** self)
 
   for (;;) {
     if (consume(self, "+"))
-      node = new_node(ND_ADD, node, mul(self), 0);
+      node = new_node(ND_ADD, node, mul(self));
     else if (consume(self, "-"))
-      node = new_node(ND_SUB, node, mul(self), 0);
+      node = new_node(ND_SUB, node, mul(self));
     else
       return node;
   }
 }
 
 Node*
-mul(Token** self)
+relational(Token** self)
 {
-  Node* node = unary(self);
+  Node* node = add(self);
 
   for (;;) {
-    if (consume(self, "*"))
-      node = new_node(ND_MUL, node, unary(self), 0);
-    else if (consume(self, "/"))
-      node = new_node(ND_DIV, node, unary(self), 0);
+    if (consume(self, "<"))
+      node = new_node(ND_LT, node, add(self));
+    else if (consume(self, "<="))
+      node = new_node(ND_LE, node, add(self));
+    else if (consume(self, ">"))
+      node = new_node(ND_LT, add(self), node);
+    else if (consume(self, ">="))
+      node = new_node(ND_LE, add(self), node);
     else
       return node;
   }
 }
 
 Node*
-unary(Token** self)
+equality(Token** self)
 {
-  if (consume(self, "+"))
-    return primary(self);
-  if (consume(self, "-"))
-    return new_node(ND_SUB, new_node_num(0), primary(self), 0);
-  return primary(self);
+  Node* node = relational(self);
+
+  for (;;) {
+    if (consume(self, "=="))
+      node = new_node(ND_EQ, node, relational(self));
+    else if (consume(self, "!="))
+      node = new_node(ND_NE, node, relational(self));
+    else
+      return node;
+  }
 }
 
 Node*
-primary(Token** self)
+assign(Token** self)
 {
-  if (consume(self, "(")) {
-    Node* node = expr(self);
-    expect(self, ")");
-    return node;
-  }
+  Node* node = equality(self);
 
-  return new_node_num(expect_number(self));
+  if (consume(self, "="))
+    node = new_node(ND_ASSIGN, node, assign(self));
+  return node;
+}
+
+Node*
+expr(Token** self)
+{
+  return assign(self);
+}
+
+Node*
+stmt(Token** self)
+{
+  Node* node = expr(self);
+  expect(self, ";");
+  return node;
+}
+
+Program*
+new_program(Token** self)
+{
+  Program* program = calloc(1, sizeof(Program));
+  while (!at_eof(*self)) {
+    program->code[program->len++] = stmt(self);
+  }
+  program->code[program->len] = NULL;
+  return program;
 }
 
 void
