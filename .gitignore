@@ -1,0 +1,6 @@
+*.dSYM/
+*~
+*.o
+tmp*
+a.out
+reccursive
