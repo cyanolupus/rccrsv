@@ -35,6 +35,13 @@ gen(Node* node)
       printf("  str x1, [x0]\n");
       printf("  str x1, [sp, #-16]!\n");
       return;
+    case ND_RETURN:
+      gen(node->lhs);
+      printf("  ldr x0, [sp], #16\n");
+      printf("  mov sp, fp\n");
+      printf("  ldp fp, lr, [sp], #16\n");
+      printf("  ret\n");
+      return;
     default:
       break;
   }

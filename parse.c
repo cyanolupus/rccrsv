@@ -42,22 +42,12 @@ primary(Token** self)
 {
   Token* tok = consume_ident(self);
   if (tok) {
-    Node* node = calloc(1, sizeof(Node));
-    node->kind = ND_LVAR;
-
     LVar* lvar = find_lvar(tok);
-    if (lvar) {
-      node->offset = lvar->offset;
-    } else {
-      lvar = calloc(1, sizeof(LVar));
-      lvar->next = program->locals;
-      lvar->name = tok->str;
-      lvar->len = tok->len;
-      lvar->offset = program->locals ? program->locals->offset + 8 : 0;
-      node->offset = lvar->offset;
-      program->locals = lvar;
+    if (lvar == NULL) {
+      lvar = new_lvar(tok->str, tok->len, program->locals->offset + 8);
+      add_lvar(lvar);
     }
-    return node;
+    return new_node_lvar(lvar->offset);
   }
 
   if (consume(self, "(")) {
@@ -162,9 +152,25 @@ expr(Token** self)
 Node*
 stmt(Token** self)
 {
-  Node* node = expr(self);
-  expect(self, ";");
-  return node;
+  if (consume(self, "return")) {
+    Node* node = new_node(ND_RETURN, expr(self), NULL);
+    expect(self, ";");
+    return node;
+  } else {
+    Node* node = expr(self);
+    expect(self, ";");
+    return node;
+  }
+}
+
+LVar*
+new_lvar(char* name, int len, int offset)
+{
+  LVar* lvar = calloc(1, sizeof(LVar));
+  lvar->name = name;
+  lvar->len = len;
+  lvar->offset = offset;
+  return lvar;
 }
 
 Program*
@@ -173,7 +179,7 @@ new_program()
   Program* program = calloc(1, sizeof(Program));
   program->len = 0;
   program->code[0] = NULL;
-  program->locals = NULL;
+  program->locals = new_lvar(NULL, 0, 0);
   return program;
 }
 
@@ -186,15 +192,21 @@ add_node(Program** self, Token** tok)
   (*self)->code[(*self)->len] = NULL;
 }
 
+void
+add_lvar(LVar* lvar)
+{
+  lvar->next = program->locals;
+  program->locals = lvar;
+}
+
 LVar*
 find_lvar(Token* tok)
 {
-  LVar* var = program->locals;
-  if (var == NULL)
-    return NULL;
-  for (; var; var = var->next)
-    if (var->len == tok->len && !memcmp(tok->str, var->name, var->len))
-      return var;
+  for (LVar* lvar = program->locals; lvar; lvar = lvar->next) {
+    if (lvar->len == tok->len && !memcmp(lvar->name, tok->str, tok->len)) {
+      return lvar;
+    }
+  }
   return NULL;
 }
 

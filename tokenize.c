@@ -1,4 +1,5 @@
 #include "reccursive.h"
+#include <string.h>
 
 bool
 consume(Token** self, char* op)
@@ -120,6 +121,12 @@ tokenize(char* p)
       char* q = p;
       cur->val = strtol(p, &p, 10);
       cur->len = p - q;
+      continue;
+    }
+
+    if (strncmp(p, "return", 6) == 0 && !isalnum(p[6])) {
+      cur = new_token(TK_RESERVED, cur, p, 6);
+      p += 6;
       continue;
     }
 

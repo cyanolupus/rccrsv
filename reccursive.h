@@ -12,6 +12,7 @@ typedef enum
   TK_IDENT,
   TK_NUM,
   TK_EOF,
+  TK_RETURN,
 } TokenKind;
 
 typedef struct Token Token;
@@ -56,6 +57,7 @@ typedef enum
   ND_LE,
   ND_ASSIGN,
   ND_LVAR,
+  ND_RETURN,
   ND_NUM,
 } NodeKind;
 
@@ -97,7 +99,14 @@ new_program();
 void
 add_node(Program** self, Token** token);
 
-LVar *find_lvar(Token* tok);
+LVar*
+new_lvar(char* name, int len, int offset);
+
+void
+add_lvar(LVar* lvar);
+
+LVar*
+find_lvar(Token* tok);
 
 Program* program;
 
