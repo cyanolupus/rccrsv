@@ -9,10 +9,11 @@ main(int argc, char** argv)
     return 1;
   }
 
+  program = new_program();
+
   user_input = argv[1];
   Token* token = tokenize(argv[1]);
-
-  Program* program = new_program(&token);
+  add_node(&program, &token);
 
   printf(".global _main\n");
   printf("_main:\n");

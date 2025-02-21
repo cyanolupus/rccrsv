@@ -29,7 +29,11 @@ TESTS = ADD$(SEP)"1+1;"$(SEP)2 \
 	ASSIGN0$(SEP)"a=1;(a+2)*3+4*5;"$(SEP)29 \
 	ASSIGN1$(SEP)"a=1;b=2;(a+b)*3+4*5;"$(SEP)29 \
 	ASSIGN2$(SEP)"a=(1*2);(a+2)*3+4*5;"$(SEP)32 \
-	ASSIGN3$(SEP)"a=(1*2);n=(a+2)*3+4*5;m=(n+a);m;"$(SEP)34
+	ASSIGN3$(SEP)"a=(1*2);n=(a+2)*3+4*5;m=(n+a);m;"$(SEP)34 \
+	ASSIGN_LONG0$(SEP)"foo=1;(foo+2)*3+4*5;"$(SEP)29 \
+	ASSIGN_LONG1$(SEP)"foo=1;bar=2;(foo+bar)*3+4*5;"$(SEP)29 \
+	ASSIGN_LONG2$(SEP)"foo=(1*2);(foo+2)*3+4*5;"$(SEP)32 \
+	ASSIGN_LONG3$(SEP)"foo=(1*2);n=(foo+2)*3+4*5;m=(n+foo);m;"$(SEP)34
 
 reccursive: $(OBJS)
 	$(CC) -o $@ $^ $(CFLAGS)

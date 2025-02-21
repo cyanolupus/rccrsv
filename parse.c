@@ -1,4 +1,5 @@
 #include "reccursive.h"
+#include <stdlib.h>
 
 Node*
 new_node(NodeKind kind, Node* lhs, Node* rhs)
@@ -41,7 +42,22 @@ primary(Token** self)
 {
   Token* tok = consume_ident(self);
   if (tok) {
-    return new_node_lvar((tok->str[0] - 'a' + 1) * 8);
+    Node* node = calloc(1, sizeof(Node));
+    node->kind = ND_LVAR;
+
+    LVar* lvar = find_lvar(tok);
+    if (lvar) {
+      node->offset = lvar->offset;
+    } else {
+      lvar = calloc(1, sizeof(LVar));
+      lvar->next = program->locals;
+      lvar->name = tok->str;
+      lvar->len = tok->len;
+      lvar->offset = program->locals ? program->locals->offset + 8 : 0;
+      node->offset = lvar->offset;
+      program->locals = lvar;
+    }
+    return node;
   }
 
   if (consume(self, "(")) {
@@ -152,14 +168,34 @@ stmt(Token** self)
 }
 
 Program*
-new_program(Token** self)
+new_program()
 {
   Program* program = calloc(1, sizeof(Program));
-  while (!at_eof(*self)) {
-    program->code[program->len++] = stmt(self);
-  }
-  program->code[program->len] = NULL;
+  program->len = 0;
+  program->code[0] = NULL;
+  program->locals = NULL;
   return program;
+}
+
+void
+add_node(Program** self, Token** tok)
+{
+  while (!at_eof(*tok)) {
+    (*self)->code[(*self)->len++] = stmt(tok);
+  }
+  (*self)->code[(*self)->len] = NULL;
+}
+
+LVar*
+find_lvar(Token* tok)
+{
+  LVar* var = program->locals;
+  if (var == NULL)
+    return NULL;
+  for (; var; var = var->next)
+    if (var->len == tok->len && !memcmp(tok->str, var->name, var->len))
+      return var;
+  return NULL;
 }
 
 void

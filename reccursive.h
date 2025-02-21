@@ -73,16 +73,33 @@ struct Node
 Node*
 expr(Token** self);
 
+typedef struct LVar LVar;
+
+struct LVar {
+    LVar* next;
+    char* name;
+    int len;
+    int offset;
+};
+
 struct Program
 {
   Node* code[100];
+  LVar* locals;
   int len;
 };
 
 typedef struct Program Program;
 
 Program*
-new_program(Token** self);
+new_program();
+
+void
+add_node(Program** self, Token** token);
+
+LVar *find_lvar(Token* tok);
+
+Program* program;
 
 // codegen.c
 void
