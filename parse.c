@@ -1,4 +1,5 @@
 #include "reccursive.h"
+#include <stdio.h>
 #include <stdlib.h>
 
 Node*
@@ -9,7 +10,6 @@ new_node(NodeKind kind, Node* lhs, Node* rhs)
   node->lhs = lhs;
   node->rhs = rhs;
   node->val = 0;
-  node->offset = 0;
   return node;
 }
 
@@ -19,17 +19,26 @@ new_node_num(int val)
   Node* node = calloc(1, sizeof(Node));
   node->kind = ND_NUM;
   node->val = val;
-  node->offset = 0;
   return node;
 }
 
 Node*
-new_node_lvar(int offset)
+new_node_lvar(LVar* lvar)
 {
   Node* node = calloc(1, sizeof(Node));
   node->kind = ND_LVAR;
   node->val = 0;
-  node->offset = offset;
+  node->lvar = lvar;
+  return node;
+}
+
+Node*
+new_node_call(LVar* lvar)
+{
+  Node* node = calloc(1, sizeof(Node));
+  node->kind = ND_CALL;
+  node->val = 0;
+  node->lvar = lvar;
   return node;
 }
 
@@ -42,7 +51,6 @@ new_node_triplet(NodeKind kind, Node* lhs, Node* rhs, Node* rrhs)
   node->rhs = rhs;
   node->rrhs = rrhs;
   node->val = 0;
-  node->offset = 0;
   return node;
 }
 
@@ -60,7 +68,6 @@ new_node_quadruplet(NodeKind kind,
   node->rrhs = rrhs;
   node->rrrhs = rrrhs;
   node->val = 0;
-  node->offset = 0;
   return node;
 }
 
@@ -71,10 +78,10 @@ primary(Token** self)
   if (tok) {
     LVar* lvar = find_lvar(tok);
     if (lvar == NULL) {
-      lvar = new_lvar(tok->str, tok->len, program->locals->offset + 8);
+      lvar = new_lvar(tok->str, tok->len, program->locals->offset + 16);
       add_lvar(lvar);
     }
-    return new_node_lvar(lvar->offset);
+    return new_node_lvar(lvar);
   }
 
   if (consume(self, "(")) {
@@ -225,7 +232,8 @@ stmt(Token** self)
     Node* node = new_node(ND_BLOCK, NULL, NULL);
     Node* cur = node;
     while (!consume(self, "}")) {
-      cur->rhs = stmt(self);
+      cur->lhs = stmt(self);
+      cur->rhs = new_node(ND_BLOCK, NULL, NULL);
       cur = cur->rhs;
     }
     return node;

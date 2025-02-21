@@ -205,8 +205,53 @@
 		"output": 20
 	},
 	{
-		"name": "BLOCK",
-		"input": "{a=0;for(i=0;i<10;i=i+1) a=a+1; a;}",
+		"name": "FOR2",
+		"input": "a=0;for(i=0;i<10;i=i+1) a=a+i; a;",
+		"output": 45
+	},
+	{
+		"name": "BLOCK0",
+		"input": "{1;}",
+		"output": 0
+	},
+	{
+		"name": "BLOCK1",
+		"input": "a=0;{for(i=0;i<10;i=i+1) a=a+1;}a;",
 		"output": 10
+	},
+	{
+		"name": "BLOCK2",
+		"input": "a=123;{for(i=0;i<10;i=i+1) a=a+1;a;}",
+		"output": 0
+	},
+	{
+		"name": "IF_BLOCK",
+		"input": "a=0;b=0;if(1){a=1;b=2;}a+b;",
+		"output": 3
+	},
+	{
+		"name": "FOR_BLOCK0",
+		"input": "a=0;for(i=0;i<10;i=i+1){a=a+1; a=a+2;}a;",
+		"output": 30
+	},
+	{
+		"name": "FOR_BLOCK1",
+		"input": "a=0; b=0;for(i=0;i<10;i=i+1){a=a+1; b=b+2;}a+b;",
+		"output": 30
+	},
+	{
+		"name": "FOR_BLOCK2",
+		"input": "a=1;for(i=0;i<5;i=i+1){a=a*2;}a;",
+		"output": 32
+	},
+	{
+		"name": "FOR_BLOCK3",
+		"input": "a=1;b=0;for(i=0;i<5;i=i+1){a=a*2; b=b+1;}a+b;",
+		"output": 37
+	},
+	{
+		"name": "FOR_BLOCK4",
+		"input": "a=1;for(i=1;i<5;i=i+1){a=a*(i+1);}a;",
+		"output": 120
 	}
 ]

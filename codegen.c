@@ -8,13 +8,14 @@ gen_lval(Node* node)
     error("Not a variable on the left side of the assignment");
 
   printf("  mov x0, fp\n");
-  printf("  sub x0, x0, #%d\n", node->offset);
+  printf("  sub x0, x0, #%d\n", node->lvar->offset);
   printf("  str x0, [sp, #-16]!\n");
 }
 
 void
 gen(Node* node)
 {
+  int curcnt;
   if (node == NULL)
     return;
   switch (node->kind) {
@@ -45,53 +46,65 @@ gen(Node* node)
       printf("  ret\n");
       return;
     case ND_IF:
-      jmpcnt++;
+      curcnt = jmpcnt++;
       gen(node->lhs);
       printf("  ldr x0, [sp], #16\n");
       printf("  cmp x0, #0\n");
 
       if (node->rrhs) {
-        printf("  beq .Lelse%d\n", jmpcnt);
+        printf("  beq .Lelse%d\n", curcnt);
         gen(node->rhs);
-        printf("  b .Lend%d\n", jmpcnt);
-        printf(".Lelse%d:\n", jmpcnt);
+        printf("  ldr x0, [sp], #16\n");
+        printf("  b .Lend%d\n", curcnt);
+        printf(".Lelse%d:\n", curcnt);
         gen(node->rrhs);
-        printf(".Lend%d:\n", jmpcnt);
+        printf("  ldr x0, [sp], #16\n");
+        printf(".Lend%d:\n", curcnt);
+        printf("  str x0, [sp, #-16]!\n");
       } else {
-        printf("  beq .Lend%d\n", jmpcnt);
+        printf("  beq .Lend%d\n", curcnt);
         gen(node->rhs);
-        printf(".Lend%d:\n", jmpcnt);
+        printf("  ldr x0, [sp], #16\n");
+        printf(".Lend%d:\n", curcnt);
+        printf("  str x0, [sp, #-16]!\n");
       }
       return;
     case ND_WHILE:
-      jmpcnt++;
-      printf(".Lbegin%d:\n", jmpcnt);
+      curcnt = jmpcnt++;
+      printf(".Lbegin%d:\n", curcnt);
       gen(node->lhs);
       printf("  ldr x0, [sp], #16\n");
       printf("  cmp x0, #0\n");
-      printf("  beq .Lend%d\n", jmpcnt);
+      printf("  beq .Lend%d\n", curcnt);
       gen(node->rhs);
-      printf("  b .Lbegin%d\n", jmpcnt);
-      printf(".Lend%d:\n", jmpcnt);
+      printf("  ldr x0, [sp], #16\n");
+      printf("  b .Lbegin%d\n", curcnt);
+      printf(".Lend%d:\n", curcnt);
+      printf("  str x0, [sp, #-16]!\n");
       return;
     case ND_FOR:
-      jmpcnt++;
+      curcnt = jmpcnt++;
       gen(node->lhs);
-      printf(".Lbegin%d:\n", jmpcnt);
+      printf("  ldr x0, [sp], #16\n");
+      printf(".Lbegin%d:\n", curcnt);
       gen(node->rhs);
       printf("  ldr x0, [sp], #16\n");
       printf("  cmp x0, #0\n");
-      printf("  beq .Lend%d\n", jmpcnt);
-      gen(node->rrhs);
+      printf("  beq .Lend%d\n", curcnt);
       gen(node->rrrhs);
-      printf("  b .Lbegin%d\n", jmpcnt);
-      printf(".Lend%d:\n", jmpcnt);
+      printf("  ldr x0, [sp], #16\n");
+      gen(node->rrhs);
+      printf("  ldr x0, [sp], #16\n");
+      printf("  b .Lbegin%d\n", curcnt);
+      printf(".Lend%d:\n", curcnt);
+      printf("  str x0, [sp, #-16]!\n");
       return;
     case ND_BLOCK:
-      for (Node* cur = node->rhs; cur; cur = cur->rhs) {
-        gen(cur);
+      for (Node* cur = node; cur; cur = cur->rhs) {
+        gen(cur->lhs);
         printf("  ldr x0, [sp], #16\n");
       }
+      printf("  str x0, [sp, #-16]!\n");
       return;
     default:
       break;

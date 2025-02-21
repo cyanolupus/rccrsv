@@ -65,23 +65,8 @@ typedef enum
   ND_WHILE,
   ND_FOR,
   ND_BLOCK,
+  ND_CALL,
 } NodeKind;
-
-typedef struct Node Node;
-
-struct Node
-{
-  NodeKind kind;
-  Node* lhs;
-  Node* rhs;
-  int val;
-  int offset;
-  Node* rrhs;
-  Node* rrrhs;
-};
-
-Node*
-expr(Token** self);
 
 typedef struct LVar LVar;
 
@@ -91,6 +76,23 @@ struct LVar {
     int len;
     int offset;
 };
+
+typedef struct Node Node;
+
+struct Node
+{
+  NodeKind kind;
+  Node* lhs;
+  Node* rhs;
+  int val;
+  Node* rrhs;
+  Node* rrrhs;
+  LVar* lvar;
+};
+
+Node*
+expr(Token** self);
+
 
 struct Program
 {
