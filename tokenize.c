@@ -2,7 +2,7 @@
 #include <string.h>
 
 bool
-consume(Token** self, char* op)
+token_consume(Token** self, char* op)
 {
   if ((*self)->kind != TK_RESERVED || strlen(op) != (*self)->len ||
       memcmp((*self)->str, op, (*self)->len))
@@ -12,7 +12,7 @@ consume(Token** self, char* op)
 }
 
 void
-expect(Token** self, char* op)
+token_expect(Token** self, char* op)
 {
   if ((*self)->kind != TK_RESERVED)
     error_at((*self)->str, "Token is not RESERVED");
@@ -28,7 +28,7 @@ expect(Token** self, char* op)
 }
 
 Token*
-consume_ident(Token** self)
+token_consume_ident(Token** self)
 {
   if ((*self)->kind != TK_IDENT)
     return NULL;
@@ -38,7 +38,7 @@ consume_ident(Token** self)
 }
 
 int
-expect_number(Token** self)
+token_expect_number(Token** self)
 {
   if ((*self)->kind != TK_NUM)
     error_at((*self)->str, "Token is not number");
@@ -48,13 +48,13 @@ expect_number(Token** self)
 }
 
 bool
-at_eof(Token* self)
+token_at_eof(Token* self)
 {
   return self->kind == TK_EOF;
 }
 
 void
-view_token(Token* self)
+token_view(Token* self)
 {
   while (self->kind != TK_EOF) {
     char* token_str = calloc(self->len + 1, sizeof(char));
@@ -67,7 +67,7 @@ view_token(Token* self)
 }
 
 Token*
-new_token(TokenKind kind, Token* cur, char* str, int len)
+token_new(TokenKind kind, Token* cur, char* str, int len)
 {
   Token* tok = calloc(1, sizeof(Token));
   tok->kind = kind;
@@ -91,7 +91,7 @@ tokenize(char* p)
     }
 
     if (strncmp(p, "<<=", 3) == 0 || strncmp(p, ">>=", 3) == 0) {
-      cur = new_token(TK_RESERVED, cur, p, 2);
+      cur = token_new(TK_RESERVED, cur, p, 2);
       p += 2;
       continue;
     }
@@ -106,18 +106,18 @@ tokenize(char* p)
         strncmp(p, "||", 2) == 0 || strncmp(p, "&&", 2) == 0 ||
         strncmp(p, ">>", 2) == 0 || strncmp(p, "<<", 2) == 0 ||
         strncmp(p, "++", 2) == 0 || strncmp(p, "--", 2) == 0) {
-      cur = new_token(TK_RESERVED, cur, p, 2);
+      cur = token_new(TK_RESERVED, cur, p, 2);
       p += 2;
       continue;
     }
 
     if (strchr("+-*/%()<>=,&^|!~.[];{}", *p)) {
-      cur = new_token(TK_RESERVED, cur, p++, 1);
+      cur = token_new(TK_RESERVED, cur, p++, 1);
       continue;
     }
 
     if (isdigit(*p)) {
-      cur = new_token(TK_NUM, cur, p, 0);
+      cur = token_new(TK_NUM, cur, p, 0);
       char* q = p;
       cur->val = strtol(p, &p, 10);
       cur->len = p - q;
@@ -125,31 +125,31 @@ tokenize(char* p)
     }
 
     if (strncmp(p, "return", 6) == 0 && !isalnum(p[6])) {
-      cur = new_token(TK_RESERVED, cur, p, 6);
+      cur = token_new(TK_RESERVED, cur, p, 6);
       p += 6;
       continue;
     }
 
     if (strncmp(p, "if", 2) == 0 && !isalnum(p[2])) {
-      cur = new_token(TK_RESERVED, cur, p, 2);
+      cur = token_new(TK_RESERVED, cur, p, 2);
       p += 2;
       continue;
     }
 
     if (strncmp(p, "else", 4) == 0 && !isalnum(p[4])) {
-      cur = new_token(TK_RESERVED, cur, p, 4);
+      cur = token_new(TK_RESERVED, cur, p, 4);
       p += 4;
       continue;
     }
 
     if (strncmp(p, "while", 5) == 0 && !isalnum(p[5])) {
-      cur = new_token(TK_RESERVED, cur, p, 5);
+      cur = token_new(TK_RESERVED, cur, p, 5);
       p += 5;
       continue;
     }
 
     if (strncmp(p, "for", 3) == 0 && !isalnum(p[3])) {
-      cur = new_token(TK_RESERVED, cur, p, 3);
+      cur = token_new(TK_RESERVED, cur, p, 3);
       p += 3;
       continue;
     }
@@ -158,13 +158,13 @@ tokenize(char* p)
       char* q = p;
       while (isalnum(*p))
         p++;
-      cur = new_token(TK_IDENT, cur, q, p - q);
+      cur = token_new(TK_IDENT, cur, q, p - q);
       continue;
     }
 
     error_at(p, "invalid token");
   }
 
-  new_token(TK_EOF, cur, p, 0);
+  token_new(TK_EOF, cur, p, 0);
   return head.next;
 }

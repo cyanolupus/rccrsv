@@ -31,19 +31,19 @@ Token*
 tokenize(char* p);
 
 bool
-consume(Token** self, char* op);
+token_consume(Token** self, char* op);
 
 void
-expect(Token** self, char* op);
+token_expect(Token** self, char* op);
 
 Token*
-consume_ident(Token** self);
+token_consume_ident(Token** self);
 
 int
-expect_number(Token** self);
+token_expect_number(Token** self);
 
 bool
-at_eof(Token* self);
+token_at_eof(Token* self);
 
 // parse.c
 typedef enum
@@ -62,10 +62,10 @@ typedef enum
   ND_NUM,
   ND_IF,
   ND_ELSE,
-  ND_WHILE,
   ND_FOR,
   ND_BLOCK,
   ND_CALL,
+  ND_FUNC,
 } NodeKind;
 
 typedef struct LVar LVar;
@@ -88,9 +88,12 @@ struct Node
   Node* rrhs;
   Node* rrrhs;
   LVar* lvar;
-  int argv[6];
+  Node *argv;
   int argc;
 };
+
+Node*
+node_new_lvar(LVar* lvar);
 
 Node*
 expr(Token** self);
@@ -99,8 +102,8 @@ expr(Token** self);
 struct Program
 {
   Node* code[100];
+    int len;
   LVar* locals;
-  int len;
 };
 
 typedef struct Program Program;
@@ -109,7 +112,10 @@ Program*
 new_program();
 
 void
-add_node(Program** self, Token** token);
+add_node(Program* program, Token** self);
+
+Node*
+global(Token** self);
 
 LVar*
 new_lvar(char* name, int len, int offset);
@@ -120,11 +126,46 @@ add_lvar(LVar* lvar);
 LVar*
 find_lvar(Token* tok);
 
+LVar*
+find_or_new_lvar(Token* tok);
+
 Program* program;
 
 // codegen.c
 void
 gen(Node* node);
+
+void
+gen_stmt(Node* node);
+
+// utils.c
+
+typedef struct {
+    void **data;
+    size_t size;
+    size_t capacity;
+} Vector;
+
+Vector *new_vector();
+void vector_push(Vector *vec, void *elem);
+void *vector_pop(Vector *vec);
+void *vector_get(Vector *vec, size_t index);
+
+typedef struct HashNode {
+    char *key;
+    void *value;
+    struct HashNode *next;
+} HashNode;
+
+#define HASHMAP_SIZE 256
+
+typedef struct {
+    HashNode *buckets[HASHMAP_SIZE];
+} HashMap;
+
+void hashmap_new(HashMap *map);
+void hashmap_put(HashMap *map, const char *key, void *value);
+void *hashmap_get(HashMap *map, const char *key);
 
 // error.c
 void

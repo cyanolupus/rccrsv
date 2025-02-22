@@ -13,22 +13,10 @@ main(int argc, char** argv)
 
   user_input = argv[1];
   Token* token = tokenize(argv[1]);
-  add_node(&program, &token);
-
-  printf(".global _main\n");
-  printf("_main:\n");
-
-  printf("  stp fp, lr, [sp, #-16]!\n");
-  printf("  mov fp, sp\n");
-  printf("  sub sp, sp, 208\n");
+  add_node(program, &token);
 
   for (int i = 0; i < program->len; i++) {
-    gen(program->code[i]);
-    printf("  ldr x0, [sp], #16\n");
+    gen_stmt(program->code[i]);
   }
-
-  printf("  mov sp, fp\n");
-  printf("  ldp fp, lr, [sp], #16\n");
-  printf("  ret\n");
   return 0;
 }
