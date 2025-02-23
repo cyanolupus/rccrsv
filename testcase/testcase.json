@@ -183,5 +183,10 @@
 		"name": "CONDITIONAL2",
 		"input": "int main() { return 0 ? 123 : 12 ? 1 : 2; }",
 		"output": 1
+	},
+	{
+		"name": "PTR0",
+		"input": "int *main() {int x; int *y; y = &x; *y = 3; return x; }",
+		"output": 3
 	}
 ]

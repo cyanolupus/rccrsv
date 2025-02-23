@@ -52,6 +52,19 @@ typedef enum
   ND_FUNC,
 } NodeKind;
 
+typedef enum
+{
+  TY_INT,
+  TY_PTR,
+  TY_FUNC,
+  TY_VOID,
+  TY_LONG,
+  TY_CHAR,
+  TY_FLOAT,
+  TY_SHORT,
+  TY_DOUBLE,
+} TypeKind;
+
 typedef struct Vector Vector;
 typedef struct HashNode HashNode;
 typedef struct HashMap HashMap;
@@ -62,6 +75,8 @@ typedef struct Tokens Tokens;
 typedef struct LVar LVar;
 typedef struct Node Node;
 typedef struct Program Program;
+
+typedef struct Type Type;
 
 // utils.c
 
@@ -133,6 +148,12 @@ token_expect_ident(Tokens* self);
 int
 token_expect_number(Tokens* self);
 
+Type*
+token_consume_type(Tokens* self);
+
+Type*
+token_expect_type(Tokens* self);
+
 bool
 token_at_eof(Tokens* self);
 
@@ -141,6 +162,8 @@ token_at_eof(Tokens* self);
 struct LVar {
     String *name;
     int offset;
+    Type *type;
+    bool is_func;
 };
 
 struct Node
@@ -175,16 +198,16 @@ Node*
 global(Token** self);
 
 LVar*
-lvar_new(char* name, int len, int offset);
-
-void
-add_lvar(LVar* lvar);
+lvar_new(char* name, int len, int offset, Type* type, bool is_func);
 
 LVar*
 find_lvar(Token* tok);
 
 LVar*
-find_or_new_lvar(Token* tok);
+expect_lvar(Token* tok);
+
+LVar*
+add_lvar(Token* tok, Type* type, bool is_func);
 
 Program* program;
 
@@ -197,6 +220,42 @@ gen_stmt(Node* node);
 
 void
 gen_expr(Node* node);
+
+// type.c
+struct Type {
+  TypeKind kind;
+  struct Type *ptr_to;
+};
+
+Type*
+type_new(TypeKind kind, Type* ptr_to);
+
+Type*
+type_new_int();
+
+Type*
+type_new_ptr(Type* ptr_to);
+
+Type*
+type_new_void();
+
+Type*
+type_new_long();
+
+Type*
+type_new_char();
+
+Type*
+type_new_float();
+
+Type*
+type_new_short();
+
+Type*
+type_new_double();
+
+char*
+type_to_string(Type* type);
 
 // error.c
 void

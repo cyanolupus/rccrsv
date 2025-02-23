@@ -15,15 +15,16 @@ writer(const char* format, ...)
 void
 gen_lval(Node* node)
 {
-  if (node->kind != ND_LVAR)
+  if (node->kind == ND_DEREF)
+    gen_expr(vector_get_node(node->children, 0));
+  else if (node->kind == ND_LVAR) {
+    LVar* lvar = vector_get_lvar(node->argv, 0);
+    writer("  sub x0, fp, #%d ; var %s\n",
+           lvar->offset,
+           string_as_cstring(lvar->name));
+    writer("  str x0, [sp, #-16]!\n");
+  } else
     error("Not a variable on the left side of the assignment");
-
-  LVar* lvar = vector_get_lvar(node->argv, 0);
-
-  writer("  sub x0, fp, #%d ; var %s\n",
-         lvar->offset,
-         string_as_cstring(lvar->name));
-  writer("  str x0, [sp, #-16]!\n");
 }
 
 void

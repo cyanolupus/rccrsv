@@ -1,4 +1,5 @@
 #include "reccursive.h"
+#include <string.h>
 
 Token*
 token_new(TokenKind kind, char* str, int len)
@@ -94,6 +95,74 @@ token_expect_number(Tokens* tokens)
     error_at(tok->str, "Token is not number");
 
   return tok->val;
+}
+
+Type*
+token_consume_type(Tokens* tokens)
+{
+  Type* type;
+  Token* tok = tokens_pop_front(tokens);
+  if (tok->kind != TK_RESERVED && tok->kind != TK_IDENT) {
+    tokens_pop_front_undo(tokens);
+    return NULL;
+  }
+
+  if (tok->len == 3 && strncmp(tok->str, "int", 3) == 0)
+    type = type_new_int();
+  else if (tok->len == 4 && strncmp(tok->str, "void", 4) == 0)
+    type = type_new_void();
+  else if (tok->len == 4 && strncmp(tok->str, "long", 4) == 0)
+    type = type_new_long();
+  else if (tok->len == 4 && strncmp(tok->str, "char", 4) == 0)
+    type = type_new_char();
+  else if (tok->len == 5 && strncmp(tok->str, "float", 5) == 0)
+    type = type_new_float();
+  else if (tok->len == 5 && strncmp(tok->str, "short", 5) == 0)
+    type = type_new_short();
+  else if (tok->len == 6 && strncmp(tok->str, "double", 6) == 0)
+    type = type_new_double();
+  else {
+    tokens_pop_front_undo(tokens);
+    return NULL;
+  }
+
+  while (token_consume(tokens, "*")) {
+    type = type_new_ptr(type);
+  }
+
+  return type;
+}
+
+Type*
+token_expect_type(Tokens* tokens)
+{
+  Type* type;
+  Token* tok = tokens_pop_front(tokens);
+  if (tok->kind != TK_RESERVED && tok->kind != TK_IDENT)
+    error_at_until(tok->str, tok->len, "Token is not RESERVED or IDENT");
+
+  if (tok->len == 3 && strncmp(tok->str, "int", 3) == 0)
+    type = type_new_int();
+  else if (tok->len == 4 && strncmp(tok->str, "void", 4) == 0)
+    type = type_new_void();
+  else if (tok->len == 4 && strncmp(tok->str, "long", 4) == 0)
+    type = type_new_long();
+  else if (tok->len == 4 && strncmp(tok->str, "char", 4) == 0)
+    type = type_new_char();
+  else if (tok->len == 5 && strncmp(tok->str, "float", 5) == 0)
+    type = type_new_float();
+  else if (tok->len == 5 && strncmp(tok->str, "short", 5) == 0)
+    type = type_new_short();
+  else if (tok->len == 6 && strncmp(tok->str, "double", 6) == 0)
+    type = type_new_double();
+  else
+    error_at_until(tok->str, tok->len, "Token is not data type");
+
+  while (token_consume(tokens, "*")) {
+    type = type_new_ptr(type);
+  }
+
+  return type;
 }
 
 bool

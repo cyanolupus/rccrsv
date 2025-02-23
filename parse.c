@@ -99,11 +99,7 @@ primary(Tokens* tokens)
 {
   Token* tok = token_consume_ident(tokens);
   if (tok) {
-    LVar* lvar = find_lvar(tok);
-    if (!lvar) {
-      error_at_until(
-        tok->str, tok->len, "undefined variable: %.*s", tok->len, tok->str);
-    }
+    LVar* lvar = expect_lvar(tok);
     if (token_consume(tokens, "(")) {
       Node* node = node_new_call(lvar);
       while (!token_consume(tokens, ")")) {
@@ -143,14 +139,14 @@ unary(Tokens* tokens)
 {
   if (token_consume(tokens, "++")) {
     Token* tok = token_expect_ident(tokens);
-    LVar* lvar = find_or_new_lvar(tok);
+    LVar* lvar = expect_lvar(tok);
     Node* add = node_new(ND_ADD, node_new_lvar(lvar), node_new_num(1));
     Node* assign = node_new(ND_ASSIGN, node_new_lvar(lvar), add);
     return assign;
   }
   if (token_consume(tokens, "--")) {
     Token* tok = token_expect_ident(tokens);
-    LVar* lvar = find_or_new_lvar(tok);
+    LVar* lvar = expect_lvar(tok);
     Node* sub = node_new(ND_SUB, node_new_lvar(lvar), node_new_num(1));
     Node* assign = node_new(ND_ASSIGN, node_new_lvar(lvar), sub);
     return assign;
@@ -367,9 +363,10 @@ assign(Tokens* tokens)
 Node*
 expr(Tokens* tokens)
 {
-  if (token_consume(tokens, "int")) {
+  Type* type = token_consume_type(tokens);
+  if (type) {
     Token* tok = token_expect_ident(tokens);
-    LVar* lvar = find_or_new_lvar(tok);
+    LVar* lvar = add_lvar(tok, type, false);
     Node* node = node_new_lvar(lvar);
     if (token_consume(tokens, "=")) {
       node = node_new(ND_ASSIGN, node, expr(tokens));
@@ -441,20 +438,21 @@ void
 add_node(Program* program, Tokens* tokens)
 {
   while (!token_at_eof(tokens)) {
-    token_expect(tokens, "int");
+    Type* type = token_expect_type(tokens);
+
     Token* funcname_ident = token_consume_ident(tokens);
     if (funcname_ident) {
-      LVar* lvar = find_or_new_lvar(funcname_ident);
+      LVar* lvar = add_lvar(funcname_ident, type, true);
       Node* node = node_new_func(lvar);
 
       if (token_consume(tokens, "(")) {
         while (!token_consume(tokens, ")")) {
           if (node->argv->size > 1)
             token_expect(tokens, ",");
-          token_expect(tokens, "int");
+          Type* arg_type = token_expect_type(tokens);
           Token* arg_ident = token_consume_ident(tokens);
           if (arg_ident) {
-            LVar* lvar = find_or_new_lvar(arg_ident);
+            LVar* lvar = add_lvar(arg_ident, arg_type, false);
             vector_push(node->argv, lvar);
           }
         }
@@ -475,11 +473,13 @@ add_node(Program* program, Tokens* tokens)
 }
 
 LVar*
-lvar_new(char* name, int len, int offset)
+lvar_new(char* name, int len, int offset, Type* type, bool is_func)
 {
   LVar* lvar = calloc(1, sizeof(LVar));
   lvar->name = to_string(name, len);
   lvar->offset = offset;
+  lvar->type = type;
+  lvar->is_func = is_func;
   return lvar;
 }
 
@@ -500,13 +500,41 @@ find_lvar(Token* tok)
 }
 
 LVar*
-find_or_new_lvar(Token* tok)
+expect_lvar(Token* tok)
+{
+  LVar* lvar = find_lvar(tok);
+  if (!lvar) {
+    error_at_until(
+      tok->str, tok->len, "undefined variable: %.*s", tok->len, tok->str);
+  }
+  return lvar;
+}
+
+LVar*
+add_lvar(Token* tok, Type* type, bool is_func)
 {
   LVar* lvar = find_lvar(tok);
   if (lvar == NULL) {
-    lvar = lvar_new(tok->str, tok->len, program->latest_offset + 8);
+    lvar =
+      lvar_new(tok->str, tok->len, program->latest_offset + 8, type, is_func);
     program->latest_offset += 8;
     hashmap_put(program->locals, string_as_cstring(lvar->name), lvar);
+  }
+  if (lvar->type->kind != type->kind) {
+    error_at_until(tok->str,
+                   tok->len,
+                   "conflicting types for '%.*s' %s vs %s",
+                   tok->len,
+                   tok->str,
+                   type_to_string(lvar->type),
+                   type_to_string(type));
+  }
+  if (lvar->is_func && !is_func) {
+    error_at_until(tok->str,
+                   tok->len,
+                   "redefinition function of '%.*s'",
+                   tok->len,
+                   tok->str);
   }
   return lvar;
 }
