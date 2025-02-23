@@ -195,6 +195,9 @@ gen(Node* node);
 void
 gen_stmt(Node* node);
 
+void
+gen_expr(Node* node);
+
 // error.c
 void
 error_at(char* loc, char* fmt, ...);

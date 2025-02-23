@@ -3,6 +3,16 @@
 
 int jmpcnt = 0;
 
+int
+writer(const char* format, ...)
+{
+  va_list args;
+  va_start(args, format);
+  int ret = vfprintf(stdout, format, args);
+  va_end(args);
+  return ret;
+}
+
 void
 gen_lval(Node* node)
 {
@@ -11,31 +21,31 @@ gen_lval(Node* node)
 
   LVar* lvar = vector_get_lvar(node->argv, 0);
 
-  printf("  sub x0, fp, #%d ; var %s\n",
+  writer("  sub x0, fp, #%d ; var %s\n",
          lvar->offset,
          string_as_cstring(lvar->name));
-  printf("  str x0, [sp, #-16]!\n");
+  writer("  str x0, [sp, #-16]!\n");
 }
 
 void
 gen_num(Node* node)
 {
-  printf("  mov x0, %d\n", node->val);
+  writer("  mov x0, %d\n", node->val);
 }
 
 void
 gen_lvar(Node* node)
 {
   gen_lval(node);
-  printf("  ldr x0, [sp], #16\n");
-  printf("  ldr x0, [x0]\n");
+  writer("  ldr x0, [sp], #16\n");
+  writer("  ldr x0, [x0]\n");
 }
 
 void
 gen_ref(Node* node)
 {
   gen_lval(vector_get_node(node->children, 0));
-  printf("  ldr x0, [sp], #16\n");
+  writer("  ldr x0, [sp], #16\n");
 }
 
 void
@@ -44,10 +54,10 @@ gen_assign(Node* node)
   Node* lhs = vector_get_node(node->children, 0);
   Node* rhs = vector_get_node(node->children, 1);
   gen_lval(lhs);
-  gen_stmt(rhs);
+  gen(rhs);
 
-  printf("  ldr x1, [sp], #16\n");
-  printf("  str x0, [x1]\n");
+  writer("  ldr x1, [sp], #16\n");
+  writer("  str x0, [x1]\n");
 }
 
 void
@@ -56,23 +66,23 @@ gen_post_assign(Node* node)
   Node* lhs = vector_get_node(node->children, 0);
   Node* rhs = vector_get_node(node->children, 1);
   gen_lvar(lhs);
-  printf("  str x0, [sp, #-16]!\n");
+  writer("  str x0, [sp, #-16]!\n");
   gen_lval(lhs);
-  gen_stmt(rhs);
+  gen(rhs);
 
-  printf("  ldr x1, [sp], #16\n");
-  printf("  str x0, [x1]\n");
-  printf("  ldr x0, [sp], #16\n");
+  writer("  ldr x1, [sp], #16\n");
+  writer("  str x0, [x1]\n");
+  writer("  ldr x0, [sp], #16\n");
 }
 
 void
 gen_return(Node* node)
 {
-  gen_stmt(vector_get_node(node->children, 0));
-  printf("  add sp, sp, %d\n", 128);
-  printf("  mov sp, fp\n");
-  printf("  ldp fp, lr, [sp], #16\n");
-  printf("  ret\n");
+  gen(vector_get_node(node->children, 0));
+  writer("  add sp, sp, %d\n", 128);
+  writer("  mov sp, fp\n");
+  writer("  ldp fp, lr, [sp], #16\n");
+  writer("  ret\n");
 }
 
 void
@@ -82,20 +92,20 @@ gen_if(Node* node)
   Node* node_cond = vector_get_node(node->children, 0);
   Node* node_then = vector_get_node(node->children, 1);
   Node* node_else = vector_get_node(node->children, 2);
-  gen_stmt(node_cond);
-  printf("  cmp x0, #0\n");
+  gen(node_cond);
+  writer("  cmp x0, #0\n");
 
   if (node_else) {
-    printf("  beq .Lelse%d\n", curcnt);
+    writer("  beq .Lelse%d\n", curcnt);
     gen_stmt(node_then);
-    printf("  b .Lend%d\n", curcnt);
-    printf(".Lelse%d:\n", curcnt);
+    writer("  b .Lend%d\n", curcnt);
+    writer(".Lelse%d:\n", curcnt);
     gen_stmt(node_else);
-    printf(".Lend%d:\n", curcnt);
+    writer(".Lend%d:\n", curcnt);
   } else {
-    printf("  beq .Lend%d\n", curcnt);
+    writer("  beq .Lend%d\n", curcnt);
     gen_stmt(node_then);
-    printf(".Lend%d:\n", curcnt);
+    writer(".Lend%d:\n", curcnt);
   }
 }
 
@@ -108,18 +118,18 @@ gen_for(Node* node)
   Node* node_inc = vector_get_node(node->children, 2);
   Node* node_body = vector_get_node(node->children, 3);
   if (node_init)
-    gen_stmt(node_init);
-  printf(".Lbegin%d:\n", curcnt);
+    gen(node_init);
+  writer(".Lbegin%d:\n", curcnt);
   if (node_cond) {
-    gen_stmt(node_cond);
-    printf("  cmp x0, #0\n");
-    printf("  beq .Lend%d\n", curcnt);
+    gen(node_cond);
+    writer("  cmp x0, #0\n");
+    writer("  beq .Lend%d\n", curcnt);
   }
   gen_stmt(node_body);
   if (node_inc)
-    gen_stmt(node_inc);
-  printf("  b .Lbegin%d\n", curcnt);
-  printf(".Lend%d:\n", curcnt);
+    gen(node_inc);
+  writer("  b .Lbegin%d\n", curcnt);
+  writer(".Lend%d:\n", curcnt);
 }
 
 void
@@ -134,15 +144,15 @@ void
 gen_func(Node* node)
 {
   LVar* func = vector_get_lvar(node->argv, 0);
-  printf(".global _%s\n", string_as_cstring(func->name));
-  printf("_%s:\n", string_as_cstring(func->name));
-  printf("  stp fp, lr, [sp, #-16]!\n");
-  printf("  mov fp, sp\n");
-  printf("  sub sp, sp, %d\n", 128);
+  writer(".global _%s\n", string_as_cstring(func->name));
+  writer("_%s:\n", string_as_cstring(func->name));
+  writer("  stp fp, lr, [sp, #-16]!\n");
+  writer("  mov fp, sp\n");
+  writer("  sub sp, sp, %d\n", 128);
   for (int i = 1; i < node->argv->size; i++) {
     LVar* lvar = vector_get_lvar(node->argv, i);
     if (lvar) {
-      printf("  str x%d, [fp, #-%d]\n", i - 1, lvar->offset);
+      writer("  str x%d, [fp, #-%d]\n", i - 1, lvar->offset);
     }
   }
   for (int i = 0; i < node->children->size; i++) {
@@ -155,12 +165,12 @@ gen_call(Node* node)
 {
   LVar* func = vector_get_lvar(node->argv, 0);
   for (int i = 0; i < node->children->size; i++) {
-    gen(vector_get_node(node->children, i));
+    gen_expr(vector_get_node(node->children, i));
   }
   for (int i = node->children->size - 1; i >= 0; i--) {
-    printf("  ldr x%d, [sp], #16\n", i);
+    writer("  ldr x%d, [sp], #16\n", i);
   }
-  printf("  bl _%s\n", string_as_cstring(func->name));
+  writer("  bl _%s\n", string_as_cstring(func->name));
 }
 
 void
@@ -169,73 +179,73 @@ gen_2op(Node* node)
   Node* lhs = vector_get_node(node->children, 0);
   Node* rhs = vector_get_node(node->children, 1);
 
-  gen(lhs);
-  gen(rhs);
+  gen_expr(lhs);
+  gen_expr(rhs);
 
-  printf("  ldr x1, [sp], #16\n");
-  printf("  ldr x0, [sp], #16\n");
+  writer("  ldr x1, [sp], #16\n");
+  writer("  ldr x0, [sp], #16\n");
 
   switch (node->kind) {
     case ND_ADD:
-      printf("  add x0, x0, x1\n");
+      writer("  add x0, x0, x1\n");
       return;
     case ND_SUB:
-      printf("  sub x0, x0, x1\n");
+      writer("  sub x0, x0, x1\n");
       return;
     case ND_MUL:
-      printf("  mul x0, x0, x1\n");
+      writer("  mul x0, x0, x1\n");
       return;
     case ND_DIV:
-      printf("  sdiv x0, x0, x1\n");
+      writer("  sdiv x0, x0, x1\n");
       return;
     case ND_MOD:
-      printf("  sdiv x2, x0, x1\n");
-      printf("  msub x0, x2, x1, x0\n");
+      writer("  sdiv x2, x0, x1\n");
+      writer("  msub x0, x2, x1, x0\n");
       return;
     case ND_EQ:
-      printf("  cmp x0, x1\n");
-      printf("  cset x0, EQ\n");
+      writer("  cmp x0, x1\n");
+      writer("  cset x0, EQ\n");
       return;
     case ND_NE:
-      printf("  cmp x0, x1\n");
-      printf("  cset x0, NE\n");
+      writer("  cmp x0, x1\n");
+      writer("  cset x0, NE\n");
       return;
     case ND_LE:
-      printf("  cmp x0, x1\n");
-      printf("  cset x0, LE\n");
+      writer("  cmp x0, x1\n");
+      writer("  cset x0, LE\n");
       return;
     case ND_LT:
-      printf("  cmp x0, x1\n");
-      printf("  cset x0, LT\n");
+      writer("  cmp x0, x1\n");
+      writer("  cset x0, LT\n");
       return;
     case ND_SHIFT_L:
-      printf("  lsl x0, x0, x1\n");
+      writer("  lsl x0, x0, x1\n");
       return;
     case ND_SHIFT_R:
-      printf("  lsr x0, x0, x1\n");
+      writer("  lsr x0, x0, x1\n");
       return;
     case ND_AND:
-      printf("  and x0, x0, x1\n");
+      writer("  and x0, x0, x1\n");
       return;
     case ND_XOR:
-      printf("  eor x0, x0, x1\n");
+      writer("  eor x0, x0, x1\n");
       return;
     case ND_OR:
-      printf("  orr x0, x0, x1\n");
+      writer("  orr x0, x0, x1\n");
       return;
     case ND_LAND:
-      printf("  cmp x0, #0\n");
-      printf("  cset x0, NE\n");
-      printf("  cmp x1, #0\n");
-      printf("  cset x1, NE\n");
-      printf("  and x0, x0, x1\n");
+      writer("  cmp x0, #0\n");
+      writer("  cset x0, NE\n");
+      writer("  cmp x1, #0\n");
+      writer("  cset x1, NE\n");
+      writer("  and x0, x0, x1\n");
       return;
     case ND_LOR:
-      printf("  cmp x0, #0\n");
-      printf("  cset x0, NE\n");
-      printf("  cmp x1, #0\n");
-      printf("  cset x1, NE\n");
-      printf("  orr x0, x0, x1\n");
+      writer("  cmp x0, #0\n");
+      writer("  cset x0, NE\n");
+      writer("  cmp x1, #0\n");
+      writer("  cset x1, NE\n");
+      writer("  orr x0, x0, x1\n");
       return;
     default:
       error("NodeKind is not supported %d", node->kind);
@@ -246,21 +256,21 @@ void
 gen_1op(Node* node)
 {
   Node* lhs = vector_get_node(node->children, 0);
-  gen_stmt(lhs);
+  gen(lhs);
 
   switch (node->kind) {
     case ND_LNOT:
-      printf("  cmp x0, #0\n");
-      printf("  cset x0, EQ\n");
+      writer("  cmp x0, #0\n");
+      writer("  cset x0, EQ\n");
       return;
     case ND_NOT:
-      printf("  mvn x0, x0\n");
+      writer("  mvn x0, x0\n");
       return;
     case ND_DEREF:
-      printf("  ldr x0, [x0]\n");
+      writer("  ldr x0, [x0]\n");
       return;
     case ND_SIZEOF:
-      printf("  mov x0, 8\n"); // TODO
+      writer("  mov x0, 8\n"); // TODO
       return;
     default:
       error("NodeKind is not supported %d", node->kind);
@@ -268,7 +278,7 @@ gen_1op(Node* node)
 }
 
 void
-gen_stmt(Node* node)
+gen(Node* node)
 {
   if (node == NULL)
     return;
@@ -336,10 +346,18 @@ gen_stmt(Node* node)
 }
 
 void
-gen(Node* node)
+gen_expr(Node* node)
 {
   if (node == NULL)
     return;
-  gen_stmt(node);
-  printf("  str x0, [sp, #-16]!\n");
+  gen(node);
+  writer("  str x0, [sp, #-16]!\n");
+}
+
+void
+gen_stmt(Node* node)
+{
+  if (node == NULL)
+    return;
+  gen(node);
 }
