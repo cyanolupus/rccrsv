@@ -12,8 +12,8 @@ main(int argc, char** argv)
   program = program_new();
 
   user_input = argv[1];
-  Token* token = tokenize(argv[1]);
-  add_node(program, &token);
+  Tokens* tokens = tokenize(argv[1]);
+  add_node(program, tokens);
 
   for (int i = 0; i < program->code->size; i++) {
     gen_stmt(vector_get_node(program->code, i));

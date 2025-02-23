@@ -29,6 +29,12 @@ vector_get(Vector* vec, size_t index)
   return vec->data[index];
 }
 
+Token*
+vector_get_token(Vector* vec, size_t index)
+{
+  return (Token*)vector_get(vec, index);
+}
+
 Node*
 vector_get_node(Vector* vec, size_t index)
 {

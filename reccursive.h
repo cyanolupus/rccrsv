@@ -14,6 +14,7 @@ typedef struct HashMap HashMap;
 typedef Vector String;
 
 typedef struct Token Token;
+typedef struct Tokens Tokens;
 typedef struct LVar LVar;
 typedef struct Node Node;
 typedef struct Program Program;
@@ -30,6 +31,7 @@ Vector *vector_new();
 void vector_push(Vector *vec, void *elem);
 void *vector_pop(Vector *vec);
 void *vector_get(Vector *vec, size_t index);
+Token *vector_get_token(Vector *vec, size_t index);
 Node *vector_get_node(Vector *vec, size_t index);
 LVar *vector_get_lvar(Vector *vec, size_t index);
 
@@ -66,29 +68,37 @@ typedef enum
 struct Token
 {
   TokenKind kind;
-  Token* next;
   int val;
   char* str;
   int len;
 };
 
-Token*
+struct Tokens
+{
+  Vector* tokens;
+  int pos;
+};
+
+Tokens*
 tokenize(char* p);
 
 bool
-token_consume(Token** self, char* op);
+token_consume(Tokens* self, char* op);
 
 void
-token_expect(Token** self, char* op);
+token_expect(Tokens* self, char* op);
 
 Token*
-token_consume_ident(Token** self);
+token_consume_ident(Tokens* self);
+
+Token*
+token_expect_ident(Tokens* self);
 
 int
-token_expect_number(Token** self);
+token_expect_number(Tokens* self);
 
 bool
-token_at_eof(Token* self);
+token_at_eof(Tokens* self);
 
 // parse.c
 typedef enum
@@ -138,8 +148,7 @@ Node*
 node_new_lvar(LVar* lvar);
 
 Node*
-expr(Token** self);
-
+expr(Tokens* self);
 
 struct Program
 {
@@ -152,7 +161,7 @@ Program*
 program_new();
 
 void
-add_node(Program* program, Token** self);
+add_node(Program* program, Tokens* tokens);
 
 Node*
 global(Token** self);

@@ -97,28 +97,28 @@ node_new_quadruplet(NodeKind kind,
 }
 
 Node*
-primary(Token** self)
+primary(Tokens* tokens)
 {
-  Token* tok = token_consume_ident(self);
+  Token* tok = token_consume_ident(tokens);
   if (tok) {
     LVar* lvar = find_or_new_lvar(tok);
-    if (token_consume(self, "(")) {
+    if (token_consume(tokens, "(")) {
       Node* node = node_new_call(lvar);
-      while (!token_consume(self, ")")) {
+      while (!token_consume(tokens, ")")) {
         if (node->children->size > 0)
-          token_expect(self, ",");
-        vector_push(node->children, expr(self));
+          token_expect(tokens, ",");
+        vector_push(node->children, expr(tokens));
       }
       return node;
     }
 
-    if (token_consume(self, "++")) {
+    if (token_consume(tokens, "++")) {
       Node* add = node_new(ND_ADD, node_new_lvar(lvar), node_new_num(1));
       Node* assign = node_new(ND_POST_ASSIGN, node_new_lvar(lvar), add);
       return assign;
     }
 
-    if (token_consume(self, "--")) {
+    if (token_consume(tokens, "--")) {
       Node* sub = node_new(ND_SUB, node_new_lvar(lvar), node_new_num(1));
       Node* assign = node_new(ND_POST_ASSIGN, node_new_lvar(lvar), sub);
       return assign;
@@ -127,221 +127,217 @@ primary(Token** self)
     return node_new_lvar(lvar);
   }
 
-  if (token_consume(self, "(")) {
-    Node* node = expr(self);
-    token_expect(self, ")");
+  if (token_consume(tokens, "(")) {
+    Node* node = expr(tokens);
+    token_expect(tokens, ")");
     return node;
   }
 
-  return node_new_num(token_expect_number(self));
+  return node_new_num(token_expect_number(tokens));
 }
 
 Node*
-unary(Token** self)
+unary(Tokens* tokens)
 {
-  if (token_consume(self, "++")) {
-    Token* tok = token_consume_ident(self);
-    if (!tok)
-      error_at((*self)->str, "Token is not identifier");
+  if (token_consume(tokens, "++")) {
+    Token* tok = token_expect_ident(tokens);
     LVar* lvar = find_or_new_lvar(tok);
     Node* add = node_new(ND_ADD, node_new_lvar(lvar), node_new_num(1));
     Node* assign = node_new(ND_ASSIGN, node_new_lvar(lvar), add);
     return assign;
   }
-  if (token_consume(self, "--")) {
-    Token* tok = token_consume_ident(self);
-    if (!tok)
-      error_at((*self)->str, "Token is not identifier");
+  if (token_consume(tokens, "--")) {
+    Token* tok = token_expect_ident(tokens);
     LVar* lvar = find_or_new_lvar(tok);
     Node* sub = node_new(ND_SUB, node_new_lvar(lvar), node_new_num(1));
     Node* assign = node_new(ND_ASSIGN, node_new_lvar(lvar), sub);
     return assign;
   }
-  if (token_consume(self, "+"))
-    return primary(self);
-  if (token_consume(self, "-"))
-    return node_new(ND_SUB, node_new_num(0), primary(self));
-  if (token_consume(self, "!"))
-    return node_new(ND_NOT, primary(self), NULL);
-  if (token_consume(self, "~"))
-    return node_new(ND_INV, primary(self), NULL);
-  if (token_consume(self, "*"))
-    return node_new(ND_DEREF, unary(self), NULL);
-  if (token_consume(self, "&"))
-    return node_new(ND_REF, unary(self), NULL);
-  if (token_consume(self, "sizeof"))
-    return node_new(ND_SIZEOF, primary(self), NULL);
-  return primary(self);
+  if (token_consume(tokens, "+"))
+    return primary(tokens);
+  if (token_consume(tokens, "-"))
+    return node_new(ND_SUB, node_new_num(0), primary(tokens));
+  if (token_consume(tokens, "!"))
+    return node_new(ND_NOT, primary(tokens), NULL);
+  if (token_consume(tokens, "~"))
+    return node_new(ND_INV, primary(tokens), NULL);
+  if (token_consume(tokens, "*"))
+    return node_new(ND_DEREF, unary(tokens), NULL);
+  if (token_consume(tokens, "&"))
+    return node_new(ND_REF, unary(tokens), NULL);
+  if (token_consume(tokens, "sizeof"))
+    return node_new(ND_SIZEOF, primary(tokens), NULL);
+  return primary(tokens);
 }
 
 Node*
-mul(Token** self)
+mul(Tokens* tokens)
 {
-  Node* node = unary(self);
+  Node* node = unary(tokens);
 
   for (;;) {
-    if (token_consume(self, "*"))
-      node = node_new(ND_MUL, node, unary(self));
-    else if (token_consume(self, "/"))
-      node = node_new(ND_DIV, node, unary(self));
-    else if (token_consume(self, "%"))
-      node = node_new(ND_MOD, node, unary(self));
+    if (token_consume(tokens, "*"))
+      node = node_new(ND_MUL, node, unary(tokens));
+    else if (token_consume(tokens, "/"))
+      node = node_new(ND_DIV, node, unary(tokens));
+    else if (token_consume(tokens, "%"))
+      node = node_new(ND_MOD, node, unary(tokens));
     else
       return node;
   }
 }
 
 Node*
-add(Token** self)
+add(Tokens* tokens)
 {
-  Node* node = mul(self);
+  Node* node = mul(tokens);
 
   for (;;) {
-    if (token_consume(self, "+"))
-      node = node_new(ND_ADD, node, mul(self));
-    else if (token_consume(self, "-"))
-      node = node_new(ND_SUB, node, mul(self));
+    if (token_consume(tokens, "+"))
+      node = node_new(ND_ADD, node, mul(tokens));
+    else if (token_consume(tokens, "-"))
+      node = node_new(ND_SUB, node, mul(tokens));
     else
       return node;
   }
 }
 
 Node*
-relational(Token** self)
+relational(Tokens* tokens)
 {
-  Node* node = add(self);
+  Node* node = add(tokens);
 
   for (;;) {
-    if (token_consume(self, "<"))
-      node = node_new(ND_LT, node, add(self));
-    else if (token_consume(self, "<="))
-      node = node_new(ND_LE, node, add(self));
-    else if (token_consume(self, ">"))
-      node = node_new(ND_LT, add(self), node);
-    else if (token_consume(self, ">="))
-      node = node_new(ND_LE, add(self), node);
+    if (token_consume(tokens, "<"))
+      node = node_new(ND_LT, node, add(tokens));
+    else if (token_consume(tokens, "<="))
+      node = node_new(ND_LE, node, add(tokens));
+    else if (token_consume(tokens, ">"))
+      node = node_new(ND_LT, add(tokens), node);
+    else if (token_consume(tokens, ">="))
+      node = node_new(ND_LE, add(tokens), node);
     else
       return node;
   }
 }
 
 Node*
-equality(Token** self)
+equality(Tokens* tokens)
 {
-  Node* node = relational(self);
+  Node* node = relational(tokens);
 
   for (;;) {
-    if (token_consume(self, "=="))
-      node = node_new(ND_EQ, node, relational(self));
-    else if (token_consume(self, "!="))
-      node = node_new(ND_NE, node, relational(self));
+    if (token_consume(tokens, "=="))
+      node = node_new(ND_EQ, node, relational(tokens));
+    else if (token_consume(tokens, "!="))
+      node = node_new(ND_NE, node, relational(tokens));
     else
       return node;
   }
 }
 
 Node*
-assign(Token** self)
+assign(Tokens* tokens)
 {
-  Node* node = equality(self);
+  Node* node = equality(tokens);
 
-  if (token_consume(self, "="))
-    node = node_new(ND_ASSIGN, node, assign(self));
+  if (token_consume(tokens, "="))
+    node = node_new(ND_ASSIGN, node, assign(tokens));
   return node;
 }
 
 Node*
-expr(Token** self)
+expr(Tokens* tokens)
 {
-  return assign(self);
+  return assign(tokens);
 }
 
 Node*
-stmt(Token** self)
+stmt(Tokens* tokens)
 {
-  if (token_consume(self, "return")) {
-    Node* node = node_new(ND_RETURN, expr(self), NULL);
-    token_expect(self, ";");
+  if (token_consume(tokens, "return")) {
+    Node* node = node_new(ND_RETURN, expr(tokens), NULL);
+    token_expect(tokens, ";");
     return node;
   }
-  if (token_consume(self, "if")) {
-    token_expect(self, "(");
-    Node* cond = expr(self);
-    token_expect(self, ")");
-    Node* then = stmt(self);
+  if (token_consume(tokens, "if")) {
+    token_expect(tokens, "(");
+    Node* cond = expr(tokens);
+    token_expect(tokens, ")");
+    Node* then = stmt(tokens);
     Node* els = NULL;
-    if (token_consume(self, "else"))
-      els = stmt(self);
+    if (token_consume(tokens, "else"))
+      els = stmt(tokens);
     return node_new_triplet(ND_IF, cond, then, els);
   }
-  if (token_consume(self, "while")) {
-    token_expect(self, "(");
+  if (token_consume(tokens, "while")) {
+    token_expect(tokens, "(");
     Node* cond = NULL;
-    if (!token_consume(self, ")")) {
-      cond = expr(self);
-      token_expect(self, ")");
+    if (!token_consume(tokens, ")")) {
+      cond = expr(tokens);
+      token_expect(tokens, ")");
     }
-    Node* body = stmt(self);
+    Node* body = stmt(tokens);
     return node_new_quadruplet(ND_FOR, NULL, cond, NULL, body);
   }
-  if (token_consume(self, "for")) {
+  if (token_consume(tokens, "for")) {
     Node *init = NULL, *cond = NULL, *inc = NULL;
-    token_expect(self, "(");
-    if (!token_consume(self, ";")) {
-      init = expr(self);
-      token_expect(self, ";");
+    token_expect(tokens, "(");
+    if (!token_consume(tokens, ";")) {
+      init = expr(tokens);
+      token_expect(tokens, ";");
     }
-    if (!token_consume(self, ";")) {
-      cond = expr(self);
-      token_expect(self, ";");
+    if (!token_consume(tokens, ";")) {
+      cond = expr(tokens);
+      token_expect(tokens, ";");
     }
-    if (!token_consume(self, ")")) {
-      inc = expr(self);
-      token_expect(self, ")");
+    if (!token_consume(tokens, ")")) {
+      inc = expr(tokens);
+      token_expect(tokens, ")");
     }
-    Node* body = stmt(self);
+    Node* body = stmt(tokens);
     return node_new_quadruplet(ND_FOR, init, cond, inc, body);
   }
-  if (token_consume(self, "{")) {
+  if (token_consume(tokens, "{")) {
     Node* node = node_new_block();
-    while (!token_consume(self, "}")) {
-      vector_push(node->children, stmt(self));
+    while (!token_consume(tokens, "}")) {
+      vector_push(node->children, stmt(tokens));
     }
     return node;
   }
-  Node* node = expr(self);
-  token_expect(self, ";");
+  Node* node = expr(tokens);
+  token_expect(tokens, ";");
   return node;
 }
 
 void
-add_node(Program* program, Token** self)
+add_node(Program* program, Tokens* tokens)
 {
-  while (!token_at_eof(*self)) {
-    Token* funcname_ident = token_consume_ident(self);
+  while (!token_at_eof(tokens)) {
+    Token* funcname_ident = token_consume_ident(tokens);
     if (funcname_ident) {
       LVar* lvar = find_or_new_lvar(funcname_ident);
       Node* node = node_new_func(lvar);
 
-      if (token_consume(self, "(")) {
-        while (!token_consume(self, ")")) {
+      if (token_consume(tokens, "(")) {
+        while (!token_consume(tokens, ")")) {
           if (node->argv->size > 1)
-            token_expect(self, ",");
-          Token* arg_ident = token_consume_ident(self);
+            token_expect(tokens, ",");
+          Token* arg_ident = token_consume_ident(tokens);
           if (arg_ident) {
             LVar* lvar = find_or_new_lvar(arg_ident);
             vector_push(node->argv, lvar);
           }
         }
 
-        if (token_consume(self, ";")) {
+        if (token_consume(tokens, ";")) {
           node->val = program->code->size;
           vector_push(program->code, node);
           continue;
         }
-        if (token_consume(self, "{")) {
-          while (!token_consume(self, "}")) {
-            vector_push(node->children, stmt(self));
+        if (token_consume(tokens, "{")) {
+          while (!token_consume(tokens, "}")) {
+            vector_push(node->children, stmt(tokens));
           }
         }
         node->val = program->code->size;
