@@ -32,6 +32,13 @@ gen_lvar(Node* node)
 }
 
 void
+gen_ref(Node* node)
+{
+  gen_lval(vector_get_node(node->children, 0));
+  printf("  ldr x0, [sp], #16\n");
+}
+
+void
 gen_assign(Node* node)
 {
   Node* lhs = vector_get_node(node->children, 0);
@@ -211,6 +218,31 @@ gen_2op(Node* node)
 }
 
 void
+gen_1op(Node* node)
+{
+  Node* lhs = vector_get_node(node->children, 0);
+  gen_stmt(lhs);
+
+  switch (node->kind) {
+    case ND_NOT:
+      printf("  cmp x0, #0\n");
+      printf("  cset x0, EQ\n");
+      return;
+    case ND_INV:
+      printf("  mvn x0, x0\n");
+      return;
+    case ND_DEREF:
+      printf("  ldr x0, [x0]\n");
+      return;
+    case ND_SIZEOF:
+      printf("  mov x0, 8\n"); // TODO
+      return;
+    default:
+      error("NodeKind is not supported %d", node->kind);
+  }
+}
+
+void
 gen_stmt(Node* node)
 {
   if (node == NULL)
@@ -224,6 +256,9 @@ gen_stmt(Node* node)
       break;
     case ND_ASSIGN:
       gen_assign(node);
+      break;
+    case ND_REF:
+      gen_ref(node);
       break;
     case ND_POST_ASSIGN:
       gen_post_assign(node);
@@ -246,9 +281,25 @@ gen_stmt(Node* node)
     case ND_CALL:
       gen_call(node);
       break;
-    default:
+    case ND_ADD:
+    case ND_SUB:
+    case ND_MUL:
+    case ND_DIV:
+    case ND_MOD:
+    case ND_EQ:
+    case ND_NE:
+    case ND_LT:
+    case ND_LE:
       gen_2op(node);
       break;
+    case ND_NOT:
+    case ND_INV:
+    case ND_DEREF:
+    case ND_SIZEOF:
+      gen_1op(node);
+      break;
+    default:
+      error("NodeKind is not supported %d", node->kind);
   }
 }
 

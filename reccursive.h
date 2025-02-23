@@ -93,6 +93,11 @@ token_at_eof(Token* self);
 // parse.c
 typedef enum
 {
+  ND_NOT,
+  ND_INV,
+  ND_DEREF,
+  ND_REF,
+  ND_SIZEOF,
   ND_ADD,
   ND_SUB,
   ND_MUL,

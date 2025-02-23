@@ -161,6 +161,16 @@ unary(Token** self)
     return primary(self);
   if (token_consume(self, "-"))
     return node_new(ND_SUB, node_new_num(0), primary(self));
+  if (token_consume(self, "!"))
+    return node_new(ND_NOT, primary(self), NULL);
+  if (token_consume(self, "~"))
+    return node_new(ND_INV, primary(self), NULL);
+  if (token_consume(self, "*"))
+    return node_new(ND_DEREF, unary(self), NULL);
+  if (token_consume(self, "&"))
+    return node_new(ND_REF, unary(self), NULL);
+  if (token_consume(self, "sizeof"))
+    return node_new(ND_SIZEOF, primary(self), NULL);
   return primary(self);
 }
 

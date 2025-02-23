@@ -68,5 +68,25 @@
 		"name": "PREINCREMENT",
 		"input": "main() { a=1; if (++a == 2) { return 123 + a; } else { return 12 + a; } }",
 		"output": 125
+	},
+	{
+		"name": "NOT",
+		"input": "main() { return !(1!=1); }",
+		"output": 1
+	},
+	{
+		"name": "INV",
+		"input": "main() { if (~0 != 1) { return 123; } else { return 12; } }",
+		"output": 123
+	},
+	{
+		"name": "REFDEREF",
+		"input": "main() { a=1; b=&a; c=*b; return c; }",
+		"output": 1
+	},
+	{
+		"name": "SIZEOF",
+		"input": "main() { return sizeof(1); }",
+		"output": 8
 	}
 ]
