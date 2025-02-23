@@ -430,6 +430,7 @@ void
 add_node(Program* program, Tokens* tokens)
 {
   while (!token_at_eof(tokens)) {
+    token_expect(tokens, "int");
     Token* funcname_ident = token_consume_ident(tokens);
     if (funcname_ident) {
       LVar* lvar = find_or_new_lvar(funcname_ident);

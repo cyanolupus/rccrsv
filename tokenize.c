@@ -137,6 +137,64 @@ tokenize(char* p)
     }
 
     if (isalpha(*p)) {
+      // data type
+      if (strncmp(p, "int", 3) == 0 && !isalnum(p[3])) {
+        vector_push(tokens->tokens, token_new(TK_RESERVED, p, 3));
+        p += 3;
+        continue;
+      }
+
+      if ((strncmp(p, "void", 4) == 0 || strncmp(p, "long", 4) == 0 ||
+           strncmp(p, "char", 4) == 0) &&
+          !isalnum(p[4])) {
+        vector_push(tokens->tokens, token_new(TK_RESERVED, p, 4));
+        p += 4;
+        continue;
+      }
+
+      if ((strncmp(p, "float", 5) == 0 || strncmp(p, "short", 5) == 0) &&
+          !isalnum(p[5])) {
+        vector_push(tokens->tokens, token_new(TK_RESERVED, p, 5));
+        p += 5;
+        continue;
+      }
+
+      if (strncmp(p, "double", 6) == 0 && !isalnum(p[6])) {
+        vector_push(tokens->tokens, token_new(TK_RESERVED, p, 6));
+        p += 6;
+        continue;
+      }
+
+      // storage class / modifier
+      if (strncmp(p, "auto", 4) == 0 && !isalnum(p[4])) {
+        vector_push(tokens->tokens, token_new(TK_RESERVED, p, 4));
+        p += 4;
+        continue;
+      }
+
+      if (strncmp(p, "const", 5) == 0 && !isalnum(p[5])) {
+        vector_push(tokens->tokens, token_new(TK_RESERVED, p, 5));
+        p += 5;
+        continue;
+      }
+
+      if ((strncmp(p, "extern", 6) == 0 || strncmp(p, "static", 6) == 0 ||
+           strncmp(p, "signed", 6) == 0) &&
+          !isalnum(p[6])) {
+        vector_push(tokens->tokens, token_new(TK_RESERVED, p, 6));
+        p += 6;
+        continue;
+      }
+
+      if ((strncmp(p, "register", 8) == 0 || strncmp(p, "volatile", 8) == 0 ||
+           strncmp(p, "unsigned", 8) == 0) &&
+          !isalnum(p[8])) {
+        vector_push(tokens->tokens, token_new(TK_RESERVED, p, 8));
+        p += 8;
+        continue;
+      }
+
+      // control syntax
       if ((strncmp(p, "if", 2) == 0 || strncmp(p, "do", 2) == 0) &&
           !isalnum(p[2])) {
         vector_push(tokens->tokens, token_new(TK_RESERVED, p, 2));
@@ -144,54 +202,69 @@ tokenize(char* p)
         continue;
       }
 
-      if ((strncmp(p, "for", 3) == 0 || strncmp(p, "int", 3) == 0) &&
-          !isalnum(p[3])) {
+      if (strncmp(p, "for", 3) == 0 && !isalnum(p[3])) {
         vector_push(tokens->tokens, token_new(TK_RESERVED, p, 3));
         p += 3;
         continue;
       }
 
-      if ((strncmp(p, "else", 4) == 0 || strncmp(p, "auto", 4) == 0 ||
-           strncmp(p, "case", 4) == 0 || strncmp(p, "char", 4) == 0 ||
-           strncmp(p, "enum", 4) == 0 || strncmp(p, "goto", 4) == 0 ||
-           strncmp(p, "long", 4) == 0 || strncmp(p, "void", 4) == 0) &&
+      if ((strncmp(p, "goto", 4) == 0 || strncmp(p, "else", 4) == 0 ||
+           strncmp(p, "case", 4) == 0) &&
           !isalnum(p[4])) {
         vector_push(tokens->tokens, token_new(TK_RESERVED, p, 4));
         p += 4;
         continue;
       }
 
-      if ((strncmp(p, "break", 5) == 0 || strncmp(p, "const", 5) == 0 ||
-           strncmp(p, "float", 5) == 0 || strncmp(p, "short", 5) == 0 ||
-           strncmp(p, "union", 5) == 0 || strncmp(p, "while", 5) == 0) &&
+      if ((strncmp(p, "break", 5) == 0 || strncmp(p, "while", 5) == 0) &&
           !isalnum(p[5])) {
         vector_push(tokens->tokens, token_new(TK_RESERVED, p, 5));
         p += 5;
         continue;
       }
 
-      if ((strncmp(p, "double", 6) == 0 || strncmp(p, "extern", 6) == 0 ||
-           strncmp(p, "return", 6) == 0 || strncmp(p, "signed", 6) == 0 ||
-           strncmp(p, "sizeof", 6) == 0 || strncmp(p, "static", 6) == 0 ||
-           strncmp(p, "struct", 6) == 0 || strncmp(p, "switch", 6) == 0) &&
+      if ((strncmp(p, "return", 6) == 0 || strncmp(p, "switch", 6) == 0) &&
           !isalnum(p[6])) {
         vector_push(tokens->tokens, token_new(TK_RESERVED, p, 6));
         p += 6;
         continue;
       }
 
-      if ((strncmp(p, "default", 7) == 0 || strncmp(p, "typedef", 7) == 0) &&
-          !isalnum(p[7])) {
+      if (strncmp(p, "default", 7) == 0 && !isalnum(p[7])) {
         vector_push(tokens->tokens, token_new(TK_RESERVED, p, 7));
         p += 7;
         continue;
       }
 
-      if ((strncmp(p, "continue", 8) == 0 || strncmp(p, "register", 8) == 0 ||
-           strncmp(p, "unsigned", 8) == 0 || strncmp(p, "volatile", 8) == 0) &&
-          !isalnum(p[8])) {
+      if (strncmp(p, "continue", 8) == 0 && !isalnum(p[8])) {
         vector_push(tokens->tokens, token_new(TK_RESERVED, p, 8));
         p += 8;
+        continue;
+      }
+
+      // type definition / type operation
+      if (strncmp(p, "enum", 4) == 0 && !isalnum(p[4])) {
+        vector_push(tokens->tokens, token_new(TK_RESERVED, p, 4));
+        p += 4;
+        continue;
+      }
+
+      if (strncmp(p, "union", 5) == 0 && !isalnum(p[5])) {
+        vector_push(tokens->tokens, token_new(TK_RESERVED, p, 5));
+        p += 5;
+        continue;
+      }
+
+      if ((strncmp(p, "struct", 6) == 0 || strncmp(p, "sizeof", 6) == 0) &&
+          !isalnum(p[6])) {
+        vector_push(tokens->tokens, token_new(TK_RESERVED, p, 6));
+        p += 6;
+        continue;
+      }
+
+      if (strncmp(p, "typedef", 7) == 0 && !isalnum(p[7])) {
+        vector_push(tokens->tokens, token_new(TK_RESERVED, p, 7));
+        p += 7;
         continue;
       }
 
