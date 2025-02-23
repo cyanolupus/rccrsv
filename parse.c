@@ -158,9 +158,9 @@ unary(Tokens* tokens)
   if (token_consume(tokens, "-"))
     return node_new(ND_SUB, node_new_num(0), primary(tokens));
   if (token_consume(tokens, "!"))
-    return node_new(ND_NOT, primary(tokens), NULL);
+    return node_new(ND_LNOT, primary(tokens), NULL);
   if (token_consume(tokens, "~"))
-    return node_new(ND_INV, primary(tokens), NULL);
+    return node_new(ND_NOT, primary(tokens), NULL);
   if (token_consume(tokens, "*"))
     return node_new(ND_DEREF, unary(tokens), NULL);
   if (token_consume(tokens, "&"))
@@ -203,19 +203,34 @@ add(Tokens* tokens)
 }
 
 Node*
-relational(Tokens* tokens)
+shift(Tokens* tokens)
 {
   Node* node = add(tokens);
 
   for (;;) {
+    if (token_consume(tokens, "<<"))
+      node = node_new(ND_SHIFT_L, node, add(tokens));
+    else if (token_consume(tokens, ">>"))
+      node = node_new(ND_SHIFT_R, node, add(tokens));
+    else
+      return node;
+  }
+}
+
+Node*
+relational(Tokens* tokens)
+{
+  Node* node = shift(tokens);
+
+  for (;;) {
     if (token_consume(tokens, "<"))
-      node = node_new(ND_LT, node, add(tokens));
+      node = node_new(ND_LT, node, shift(tokens));
     else if (token_consume(tokens, "<="))
-      node = node_new(ND_LE, node, add(tokens));
+      node = node_new(ND_LE, node, shift(tokens));
     else if (token_consume(tokens, ">"))
-      node = node_new(ND_LT, add(tokens), node);
+      node = node_new(ND_LT, shift(tokens), node);
     else if (token_consume(tokens, ">="))
-      node = node_new(ND_LE, add(tokens), node);
+      node = node_new(ND_LE, shift(tokens), node);
     else
       return node;
   }
@@ -237,12 +252,113 @@ equality(Tokens* tokens)
 }
 
 Node*
-assign(Tokens* tokens)
+bitwise_and(Tokens* tokens)
 {
   Node* node = equality(tokens);
 
+  for (;;) {
+    if (token_consume(tokens, "&"))
+      node = node_new(ND_AND, node, equality(tokens));
+    else
+      return node;
+  }
+}
+
+Node*
+bitwise_xor(Tokens* tokens)
+{
+  Node* node = bitwise_and(tokens);
+
+  for (;;) {
+    if (token_consume(tokens, "^"))
+      node = node_new(ND_XOR, node, bitwise_and(tokens));
+    else
+      return node;
+  }
+}
+
+Node*
+bitwise_or(Tokens* tokens)
+{
+  Node* node = bitwise_xor(tokens);
+
+  for (;;) {
+    if (token_consume(tokens, "|"))
+      node = node_new(ND_OR, node, bitwise_xor(tokens));
+    else
+      return node;
+  }
+}
+
+Node*
+logical_and(Tokens* tokens)
+{
+  Node* node = bitwise_or(tokens);
+
+  for (;;) {
+    if (token_consume(tokens, "&&"))
+      node = node_new(ND_AND, node, bitwise_or(tokens));
+    else
+      return node;
+  }
+}
+
+Node*
+logical_or(Tokens* tokens)
+{
+  Node* node = logical_and(tokens);
+
+  for (;;) {
+    if (token_consume(tokens, "||"))
+      node = node_new(ND_OR, node, logical_and(tokens));
+    else
+      return node;
+  }
+}
+
+Node*
+conditional(Tokens* tokens)
+{
+  Node* node = logical_or(tokens);
+
+  if (token_consume(tokens, "?")) {
+    Node* then = conditional(tokens);
+    token_expect(tokens, ":");
+    Node* els = conditional(tokens);
+    return node_new_triplet(ND_IF, node, then, els);
+  }
+  return node;
+}
+
+Node*
+assign(Tokens* tokens)
+{
+  Node* node = conditional(tokens);
+
   if (token_consume(tokens, "="))
     node = node_new(ND_ASSIGN, node, assign(tokens));
+  else if (token_consume(tokens, "+="))
+    node = node_new(ND_ASSIGN, node, node_new(ND_ADD, node, assign(tokens)));
+  else if (token_consume(tokens, "-="))
+    node = node_new(ND_ASSIGN, node, node_new(ND_SUB, node, assign(tokens)));
+  else if (token_consume(tokens, "*="))
+    node = node_new(ND_ASSIGN, node, node_new(ND_MUL, node, assign(tokens)));
+  else if (token_consume(tokens, "/="))
+    node = node_new(ND_ASSIGN, node, node_new(ND_DIV, node, assign(tokens)));
+  else if (token_consume(tokens, "%="))
+    node = node_new(ND_ASSIGN, node, node_new(ND_MOD, node, assign(tokens)));
+  else if (token_consume(tokens, "&="))
+    node = node_new(ND_ASSIGN, node, node_new(ND_AND, node, assign(tokens)));
+  else if (token_consume(tokens, "^="))
+    node = node_new(ND_ASSIGN, node, node_new(ND_XOR, node, assign(tokens)));
+  else if (token_consume(tokens, "|="))
+    node = node_new(ND_ASSIGN, node, node_new(ND_OR, node, assign(tokens)));
+  else if (token_consume(tokens, "<<="))
+    node =
+      node_new(ND_ASSIGN, node, node_new(ND_SHIFT_L, node, assign(tokens)));
+  else if (token_consume(tokens, ">>="))
+    node =
+      node_new(ND_ASSIGN, node, node_new(ND_SHIFT_R, node, assign(tokens)));
   return node;
 }
 

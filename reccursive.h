@@ -8,6 +8,50 @@
 int jmpcnt;
 
 // typedef
+typedef enum
+{
+  TK_RESERVED,
+  TK_IDENT,
+  TK_NUM,
+  TK_EOF,
+} TokenKind;
+
+typedef enum
+{
+  ND_LNOT,
+  ND_NOT,
+  ND_DEREF,
+  ND_REF,
+  ND_SIZEOF,
+  ND_ADD,
+  ND_SUB,
+  ND_MUL,
+  ND_DIV,
+  ND_MOD,
+  ND_SHIFT_L,
+  ND_SHIFT_R,
+  ND_AND,
+  ND_XOR,
+  ND_OR,
+  ND_LAND,
+  ND_LOR,
+  ND_EQ,
+  ND_NE,
+  ND_LT,
+  ND_LE,
+  ND_ASSIGN,
+  ND_POST_ASSIGN,
+  ND_LVAR,
+  ND_RETURN,
+  ND_NUM,
+  ND_IF,
+  ND_ELSE,
+  ND_FOR,
+  ND_BLOCK,
+  ND_CALL,
+  ND_FUNC,
+} NodeKind;
+
 typedef struct Vector Vector;
 typedef struct HashNode HashNode;
 typedef struct HashMap HashMap;
@@ -57,14 +101,6 @@ void string_add(String *str, char *s, size_t len);
 const char *string_as_cstring(String *str);
 
 // tokenize.c
-typedef enum
-{
-  TK_RESERVED,
-  TK_IDENT,
-  TK_NUM,
-  TK_EOF,
-} TokenKind;
-
 struct Token
 {
   TokenKind kind;
@@ -101,34 +137,6 @@ bool
 token_at_eof(Tokens* self);
 
 // parse.c
-typedef enum
-{
-  ND_NOT,
-  ND_INV,
-  ND_DEREF,
-  ND_REF,
-  ND_SIZEOF,
-  ND_ADD,
-  ND_SUB,
-  ND_MUL,
-  ND_DIV,
-  ND_MOD,
-  ND_EQ,
-  ND_NE,
-  ND_LT,
-  ND_LE,
-  ND_ASSIGN,
-  ND_POST_ASSIGN,
-  ND_LVAR,
-  ND_RETURN,
-  ND_NUM,
-  ND_IF,
-  ND_ELSE,
-  ND_FOR,
-  ND_BLOCK,
-  ND_CALL,
-  ND_FUNC,
-} NodeKind;
 
 struct LVar {
     String *name;

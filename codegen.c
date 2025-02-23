@@ -44,9 +44,8 @@ gen_assign(Node* node)
   Node* lhs = vector_get_node(node->children, 0);
   Node* rhs = vector_get_node(node->children, 1);
   gen_lval(lhs);
-  gen(rhs);
+  gen_stmt(rhs);
 
-  printf("  ldr x0, [sp], #16\n");
   printf("  ldr x1, [sp], #16\n");
   printf("  str x0, [x1]\n");
 }
@@ -59,9 +58,8 @@ gen_post_assign(Node* node)
   gen_lvar(lhs);
   printf("  str x0, [sp, #-16]!\n");
   gen_lval(lhs);
-  gen(rhs);
+  gen_stmt(rhs);
 
-  printf("  ldr x0, [sp], #16\n");
   printf("  ldr x1, [sp], #16\n");
   printf("  str x0, [x1]\n");
   printf("  ldr x0, [sp], #16\n");
@@ -70,8 +68,7 @@ gen_post_assign(Node* node)
 void
 gen_return(Node* node)
 {
-  gen(vector_get_node(node->children, 0));
-  printf("  ldr x0, [sp], #16\n");
+  gen_stmt(vector_get_node(node->children, 0));
   printf("  add sp, sp, %d\n", 128);
   printf("  mov sp, fp\n");
   printf("  ldp fp, lr, [sp], #16\n");
@@ -85,8 +82,7 @@ gen_if(Node* node)
   Node* node_cond = vector_get_node(node->children, 0);
   Node* node_then = vector_get_node(node->children, 1);
   Node* node_else = vector_get_node(node->children, 2);
-  gen(vector_get_node(node->children, 0));
-  printf("  ldr x0, [sp], #16\n");
+  gen_stmt(node_cond);
   printf("  cmp x0, #0\n");
 
   if (node_else) {
@@ -212,6 +208,35 @@ gen_2op(Node* node)
       printf("  cmp x0, x1\n");
       printf("  cset x0, LT\n");
       return;
+    case ND_SHIFT_L:
+      printf("  lsl x0, x0, x1\n");
+      return;
+    case ND_SHIFT_R:
+      printf("  lsr x0, x0, x1\n");
+      return;
+    case ND_AND:
+      printf("  and x0, x0, x1\n");
+      return;
+    case ND_XOR:
+      printf("  eor x0, x0, x1\n");
+      return;
+    case ND_OR:
+      printf("  orr x0, x0, x1\n");
+      return;
+    case ND_LAND:
+      printf("  cmp x0, #0\n");
+      printf("  cset x0, NE\n");
+      printf("  cmp x1, #0\n");
+      printf("  cset x1, NE\n");
+      printf("  and x0, x0, x1\n");
+      return;
+    case ND_LOR:
+      printf("  cmp x0, #0\n");
+      printf("  cset x0, NE\n");
+      printf("  cmp x1, #0\n");
+      printf("  cset x1, NE\n");
+      printf("  orr x0, x0, x1\n");
+      return;
     default:
       error("NodeKind is not supported %d", node->kind);
   }
@@ -224,11 +249,11 @@ gen_1op(Node* node)
   gen_stmt(lhs);
 
   switch (node->kind) {
-    case ND_NOT:
+    case ND_LNOT:
       printf("  cmp x0, #0\n");
       printf("  cset x0, EQ\n");
       return;
-    case ND_INV:
+    case ND_NOT:
       printf("  mvn x0, x0\n");
       return;
     case ND_DEREF:
@@ -290,10 +315,17 @@ gen_stmt(Node* node)
     case ND_NE:
     case ND_LT:
     case ND_LE:
+    case ND_SHIFT_L:
+    case ND_SHIFT_R:
+    case ND_AND:
+    case ND_XOR:
+    case ND_OR:
+    case ND_LAND:
+    case ND_LOR:
       gen_2op(node);
       break;
+    case ND_LNOT:
     case ND_NOT:
-    case ND_INV:
     case ND_DEREF:
     case ND_SIZEOF:
       gen_1op(node);

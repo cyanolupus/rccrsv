@@ -214,16 +214,16 @@ tokenize(char* p)
         strncmp(p, "*=", 2) == 0 || strncmp(p, "/=", 2) == 0 ||
         strncmp(p, "%=", 2) == 0 || strncmp(p, "&=", 2) == 0 ||
         strncmp(p, "^=", 2) == 0 || strncmp(p, "|=", 2) == 0 ||
-        strncmp(p, "?:", 2) == 0 || strncmp(p, "->", 2) == 0 ||
-        strncmp(p, "||", 2) == 0 || strncmp(p, "&&", 2) == 0 ||
-        strncmp(p, ">>", 2) == 0 || strncmp(p, "<<", 2) == 0 ||
-        strncmp(p, "++", 2) == 0 || strncmp(p, "--", 2) == 0) {
+        strncmp(p, "->", 2) == 0 || strncmp(p, "||", 2) == 0 ||
+        strncmp(p, "&&", 2) == 0 || strncmp(p, ">>", 2) == 0 ||
+        strncmp(p, "<<", 2) == 0 || strncmp(p, "++", 2) == 0 ||
+        strncmp(p, "--", 2) == 0) {
       vector_push(tokens->tokens, token_new(TK_RESERVED, p, 2));
       p += 2;
       continue;
     }
 
-    if (strchr("+-*/%()<>=,&^|!~.[];{}", *p)) {
+    if (strchr("+-*/%()<>=,&^|!~.[];{}:?", *p)) {
       vector_push(tokens->tokens, token_new(TK_RESERVED, p++, 1));
       continue;
     }
