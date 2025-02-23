@@ -103,6 +103,7 @@ typedef enum
   ND_LT,
   ND_LE,
   ND_ASSIGN,
+  ND_POST_ASSIGN,
   ND_LVAR,
   ND_RETURN,
   ND_NUM,

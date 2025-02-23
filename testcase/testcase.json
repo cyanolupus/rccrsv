@@ -58,5 +58,15 @@
 		"name": "ARG1",
 		"input": "main() { return a(9,3); } a(x,y) { return x / y; }",
 		"output": 3
+	},
+	{
+		"name": "POSTINCREMENT",
+		"input": "main() { a=1; if (a++ == 1) { return 123 + a; } else { return 12 + a; } }",
+		"output": 125
+	},
+	{
+		"name": "PREINCREMENT",
+		"input": "main() { a=1; if (++a == 2) { return 123 + a; } else { return 12 + a; } }",
+		"output": 125
 	}
 ]

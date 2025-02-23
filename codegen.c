@@ -39,9 +39,25 @@ gen_assign(Node* node)
   gen_lval(lhs);
   gen(rhs);
 
-  printf("  ldr x1, [sp], #16\n");
   printf("  ldr x0, [sp], #16\n");
-  printf("  str x1, [x0]\n");
+  printf("  ldr x1, [sp], #16\n");
+  printf("  str x0, [x1]\n");
+}
+
+void
+gen_post_assign(Node* node)
+{
+  Node* lhs = vector_get_node(node->children, 0);
+  Node* rhs = vector_get_node(node->children, 1);
+  gen_lvar(lhs);
+  printf("  str x0, [sp, #-16]!\n");
+  gen_lval(lhs);
+  gen(rhs);
+
+  printf("  ldr x0, [sp], #16\n");
+  printf("  ldr x1, [sp], #16\n");
+  printf("  str x0, [x1]\n");
+  printf("  ldr x0, [sp], #16\n");
 }
 
 void
@@ -208,6 +224,9 @@ gen_stmt(Node* node)
       break;
     case ND_ASSIGN:
       gen_assign(node);
+      break;
+    case ND_POST_ASSIGN:
+      gen_post_assign(node);
       break;
     case ND_RETURN:
       gen_return(node);

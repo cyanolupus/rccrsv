@@ -112,6 +112,18 @@ primary(Token** self)
       return node;
     }
 
+    if (token_consume(self, "++")) {
+      Node* add = node_new(ND_ADD, node_new_lvar(lvar), node_new_num(1));
+      Node* assign = node_new(ND_POST_ASSIGN, node_new_lvar(lvar), add);
+      return assign;
+    }
+
+    if (token_consume(self, "--")) {
+      Node* sub = node_new(ND_SUB, node_new_lvar(lvar), node_new_num(1));
+      Node* assign = node_new(ND_POST_ASSIGN, node_new_lvar(lvar), sub);
+      return assign;
+    }
+
     return node_new_lvar(lvar);
   }
 
@@ -127,6 +139,24 @@ primary(Token** self)
 Node*
 unary(Token** self)
 {
+  if (token_consume(self, "++")) {
+    Token* tok = token_consume_ident(self);
+    if (!tok)
+      error_at((*self)->str, "Token is not identifier");
+    LVar* lvar = find_or_new_lvar(tok);
+    Node* add = node_new(ND_ADD, node_new_lvar(lvar), node_new_num(1));
+    Node* assign = node_new(ND_ASSIGN, node_new_lvar(lvar), add);
+    return assign;
+  }
+  if (token_consume(self, "--")) {
+    Token* tok = token_consume_ident(self);
+    if (!tok)
+      error_at((*self)->str, "Token is not identifier");
+    LVar* lvar = find_or_new_lvar(tok);
+    Node* sub = node_new(ND_SUB, node_new_lvar(lvar), node_new_num(1));
+    Node* assign = node_new(ND_ASSIGN, node_new_lvar(lvar), sub);
+    return assign;
+  }
   if (token_consume(self, "+"))
     return primary(self);
   if (token_consume(self, "-"))
