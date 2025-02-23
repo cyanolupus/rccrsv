@@ -1,5 +1,4 @@
 #include "reccursive.h"
-#include <stdlib.h>
 
 Vector*
 vector_new()

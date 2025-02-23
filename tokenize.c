@@ -1,5 +1,4 @@
 #include "reccursive.h"
-#include <string.h>
 
 Token*
 token_new(TokenKind kind, char* str, int len)

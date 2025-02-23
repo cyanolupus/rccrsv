@@ -1,5 +1,4 @@
 #include "reccursive.h"
-#include <stdio.h>
 
 int jmpcnt = 0;
 
