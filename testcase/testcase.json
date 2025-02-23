@@ -20,6 +20,16 @@
 		"output": 8
 	},
 	{
+		"name": "EXTERNAL_FUNC0",
+		"input": "main() { return foo(); }",
+		"output": 123
+	},
+	{
+		"name": "EXTERNAL_FUNC1",
+		"input": "main() { return foo() + bar(3,5); }",
+		"output": 131
+	},
+	{
 		"name": "MULFUNC0",
 		"input": "main() { return a(); } a() { return 3 * 4; }",
 		"output": 12
