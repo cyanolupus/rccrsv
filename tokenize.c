@@ -98,6 +98,72 @@ tokenize(char* p)
       continue;
     }
 
+    if (isalpha(*p)) {
+      if ((strncmp(p, "if", 2) == 0 || strncmp(p, "do", 2) == 0) &&
+          !isalnum(p[2])) {
+        cur = token_new(TK_RESERVED, cur, p, 2);
+        p += 2;
+        continue;
+      }
+
+      if ((strncmp(p, "for", 3) == 0 || strncmp(p, "int", 3) == 0) &&
+          !isalnum(p[3])) {
+        cur = token_new(TK_RESERVED, cur, p, 3);
+        p += 3;
+        continue;
+      }
+
+      if ((strncmp(p, "else", 4) == 0 || strncmp(p, "auto", 4) == 0 ||
+           strncmp(p, "case", 4) == 0 || strncmp(p, "char", 4) == 0 ||
+           strncmp(p, "enum", 4) == 0 || strncmp(p, "goto", 4) == 0 ||
+           strncmp(p, "long", 4) == 0 || strncmp(p, "void", 4) == 0) &&
+          !isalnum(p[4])) {
+        cur = token_new(TK_RESERVED, cur, p, 4);
+        p += 4;
+        continue;
+      }
+
+      if ((strncmp(p, "break", 5) == 0 || strncmp(p, "const", 5) == 0 ||
+           strncmp(p, "float", 5) == 0 || strncmp(p, "short", 5) == 0 ||
+           strncmp(p, "union", 5) == 0 || strncmp(p, "while", 5) == 0) &&
+          !isalnum(p[5])) {
+        cur = token_new(TK_RESERVED, cur, p, 5);
+        p += 5;
+        continue;
+      }
+
+      if ((strncmp(p, "double", 6) == 0 || strncmp(p, "extern", 6) == 0 ||
+           strncmp(p, "return", 6) == 0 || strncmp(p, "signed", 6) == 0 ||
+           strncmp(p, "sizeof", 6) == 0 || strncmp(p, "static", 6) == 0 ||
+           strncmp(p, "struct", 6) == 0 || strncmp(p, "switch", 6) == 0) &&
+          !isalnum(p[6])) {
+        cur = token_new(TK_RESERVED, cur, p, 6);
+        p += 6;
+        continue;
+      }
+
+      if ((strncmp(p, "default", 7) == 0 || strncmp(p, "typedef", 7) == 0) &&
+          !isalnum(p[7])) {
+        cur = token_new(TK_RESERVED, cur, p, 7);
+        p += 7;
+        continue;
+      }
+
+      if ((strncmp(p, "continue", 8) == 0 || strncmp(p, "register", 8) == 0 ||
+           strncmp(p, "unsigned", 8) == 0 || strncmp(p, "volatile", 8) == 0) &&
+          !isalnum(p[8])) {
+        cur = token_new(TK_RESERVED, cur, p, 8);
+        p += 8;
+        continue;
+      }
+
+      char* q = p;
+      while (isalnum(*p))
+        p++;
+      cur = token_new(TK_IDENT, cur, q, p - q);
+      continue;
+    }
+
     if (strncmp(p, "<<=", 3) == 0 || strncmp(p, ">>=", 3) == 0) {
       cur = token_new(TK_RESERVED, cur, p, 2);
       p += 2;
@@ -121,45 +187,6 @@ tokenize(char* p)
 
     if (strchr("+-*/%()<>=,&^|!~.[];{}", *p)) {
       cur = token_new(TK_RESERVED, cur, p++, 1);
-      continue;
-    }
-
-    if (strncmp(p, "if", 2) == 0 && !isalnum(p[2])) {
-      cur = token_new(TK_RESERVED, cur, p, 2);
-      p += 2;
-      continue;
-    }
-
-    if (strncmp(p, "for", 3) == 0 && !isalnum(p[3])) {
-      cur = token_new(TK_RESERVED, cur, p, 3);
-      p += 3;
-      continue;
-    }
-
-    if (strncmp(p, "else", 4) == 0 && !isalnum(p[4])) {
-      cur = token_new(TK_RESERVED, cur, p, 4);
-      p += 4;
-      continue;
-    }
-
-    if (strncmp(p, "while", 5) == 0 && !isalnum(p[5])) {
-      cur = token_new(TK_RESERVED, cur, p, 5);
-      p += 5;
-      continue;
-    }
-
-    if ((strncmp(p, "return", 6) == 0 || strncmp(p, "sizeof", 6) == 0) &&
-        !isalnum(p[6])) {
-      cur = token_new(TK_RESERVED, cur, p, 6);
-      p += 6;
-      continue;
-    }
-
-    if (isalpha(*p)) {
-      char* q = p;
-      while (isalnum(*p))
-        p++;
-      cur = token_new(TK_IDENT, cur, q, p - q);
       continue;
     }
 
