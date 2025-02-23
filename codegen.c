@@ -169,6 +169,10 @@ gen_2op(Node* node)
     case ND_DIV:
       printf("  sdiv x0, x0, x1\n");
       return;
+    case ND_MOD:
+      printf("  sdiv x2, x0, x1\n");
+      printf("  msub x0, x2, x1, x0\n");
+      return;
     case ND_EQ:
       printf("  cmp x0, x1\n");
       printf("  cset x0, EQ\n");

@@ -5,6 +5,11 @@
 		"output": 2
 	},
 	{
+		"name": "MOD",
+		"input": "main() { return 5 % 2; }",
+		"output": 1
+	},
+	{
 		"name": "IF_BLOCK",
 		"input": "main() { if (1) { return 1; } else { return 2; } }",
 		"output": 1
