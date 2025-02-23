@@ -7,8 +7,9 @@ node_new(NodeKind kind, Node* lhs, Node* rhs)
 {
   Node* node = calloc(1, sizeof(Node));
   node->kind = kind;
-  node->lhs = lhs;
-  node->rhs = rhs;
+  node->children = vector_new();
+  vector_push(node->children, lhs);
+  vector_push(node->children, rhs);
   node->val = 0;
   return node;
 }
@@ -23,24 +24,34 @@ node_new_num(int val)
 }
 
 Node*
+node_new_block()
+{
+  Node* node = calloc(1, sizeof(Node));
+  node->kind = ND_BLOCK;
+  node->children = vector_new();
+  return node;
+}
+
+Node*
 node_new_lvar(LVar* lvar)
 {
   Node* node = calloc(1, sizeof(Node));
   node->kind = ND_LVAR;
   node->val = 0;
-  node->lvar = lvar;
+  node->argv = vector_new();
+  vector_push(node->argv, lvar);
   return node;
 }
 
 Node*
-node_new_call(LVar* lvar, int argc, Node** argv)
+node_new_call(LVar* lvar)
 {
-  if (argc > 6)
-    error("Too many arguments");
   Node* node = calloc(1, sizeof(Node));
   node->kind = ND_CALL;
   node->val = 0;
-  node->lvar = lvar;
+  node->children = vector_new();
+  node->argv = vector_new();
+  vector_push(node->argv, lvar);
   return node;
 }
 
@@ -50,7 +61,9 @@ node_new_func(LVar* lvar)
   Node* node = calloc(1, sizeof(Node));
   node->kind = ND_FUNC;
   node->val = 0;
-  node->lvar = lvar;
+  node->argv = vector_new();
+  vector_push(node->argv, lvar);
+  node->children = vector_new();
   return node;
 }
 
@@ -59,10 +72,10 @@ node_new_triplet(NodeKind kind, Node* lhs, Node* rhs, Node* rrhs)
 {
   Node* node = calloc(1, sizeof(Node));
   node->kind = kind;
-  node->lhs = lhs;
-  node->rhs = rhs;
-  node->rrhs = rrhs;
-  node->val = 0;
+  node->children = vector_new();
+  vector_push(node->children, lhs);
+  vector_push(node->children, rhs);
+  vector_push(node->children, rrhs);
   return node;
 }
 
@@ -75,11 +88,11 @@ node_new_quadruplet(NodeKind kind,
 {
   Node* node = calloc(1, sizeof(Node));
   node->kind = kind;
-  node->lhs = lhs;
-  node->rhs = rhs;
-  node->rrhs = rrhs;
-  node->rrrhs = rrrhs;
-  node->val = 0;
+  node->children = vector_new();
+  vector_push(node->children, lhs);
+  vector_push(node->children, rhs);
+  vector_push(node->children, rrhs);
+  vector_push(node->children, rrrhs);
   return node;
 }
 
@@ -90,12 +103,11 @@ primary(Token** self)
   if (tok) {
     LVar* lvar = find_or_new_lvar(tok);
     if (token_consume(self, "(")) {
-      Node* node = node_new_call(lvar, 0, NULL);
+      Node* node = node_new_call(lvar);
       while (!token_consume(self, ")")) {
-        if (node->argc > 0)
+        if (node->children->size > 0)
           token_expect(self, ",");
-        node->argv = realloc(node->argv, sizeof(Node*) * node->argc);
-        // node->argv[node->argc++] = expr(self);
+        vector_push(node->children, expr(self));
       }
       return node;
     }
@@ -132,6 +144,8 @@ mul(Token** self)
       node = node_new(ND_MUL, node, unary(self));
     else if (token_consume(self, "/"))
       node = node_new(ND_DIV, node, unary(self));
+    else if (token_consume(self, "%"))
+      node = node_new(ND_MOD, node, unary(self));
     else
       return node;
   }
@@ -202,8 +216,6 @@ expr(Token** self)
   return assign(self);
 }
 
-int jmpcnt = 0;
-
 Node*
 stmt(Token** self)
 {
@@ -224,8 +236,11 @@ stmt(Token** self)
   }
   if (token_consume(self, "while")) {
     token_expect(self, "(");
-    Node* cond = expr(self);
-    token_expect(self, ")");
+    Node* cond = NULL;
+    if (!token_consume(self, ")")) {
+      cond = expr(self);
+      token_expect(self, ")");
+    }
     Node* body = stmt(self);
     return node_new_quadruplet(ND_FOR, NULL, cond, NULL, body);
   }
@@ -248,12 +263,9 @@ stmt(Token** self)
     return node_new_quadruplet(ND_FOR, init, cond, inc, body);
   }
   if (token_consume(self, "{")) {
-    Node* node = node_new(ND_BLOCK, NULL, NULL);
-    Node* cur = node;
+    Node* node = node_new_block();
     while (!token_consume(self, "}")) {
-      cur->lhs = stmt(self);
-      cur->rhs = node_new(ND_BLOCK, NULL, NULL);
-      cur = cur->rhs;
+      vector_push(node->children, stmt(self));
     }
     return node;
   }
@@ -268,77 +280,60 @@ add_node(Program* program, Token** self)
   while (!token_at_eof(*self)) {
     Token* funcname_ident = token_consume_ident(self);
     if (funcname_ident) {
+      LVar* lvar = find_or_new_lvar(funcname_ident);
+      Node* node = node_new_func(lvar);
+
       if (token_consume(self, "(")) {
-        LVar* lvar = find_or_new_lvar(funcname_ident);
-        int argc = 0;
         while (!token_consume(self, ")")) {
-          if (argc > 0)
+          if (node->argv->size > 1)
             token_expect(self, ",");
           Token* arg_ident = token_consume_ident(self);
           if (arg_ident) {
             LVar* lvar = find_or_new_lvar(arg_ident);
-            argc++;
+            vector_push(node->argv, lvar);
           }
         }
 
-        Node* node = node_new_func(lvar);
-
         if (token_consume(self, ";")) {
-          node->val = program->len;
-          program->code[program->len++] = node;
+          node->val = program->code->size;
+          vector_push(program->code, node);
           continue;
         }
         if (token_consume(self, "{")) {
-          Node* cur = node;
           while (!token_consume(self, "}")) {
-            cur->lhs = stmt(self);
-            cur->rhs = node_new(ND_FUNC, NULL, NULL);
-            cur = cur->rhs;
+            vector_push(node->children, stmt(self));
           }
         }
-        node->val = program->len;
-        program->code[program->len++] = node;
+        node->val = program->code->size;
+        vector_push(program->code, node);
       }
     }
   }
 }
 
 LVar*
-new_lvar(char* name, int len, int offset)
+lvar_new(char* name, int len, int offset)
 {
   LVar* lvar = calloc(1, sizeof(LVar));
-  lvar->name = name;
-  lvar->len = len;
+  lvar->name = to_string(name, len);
   lvar->offset = offset;
   return lvar;
 }
 
 Program*
-new_program()
+program_new()
 {
   Program* program = calloc(1, sizeof(Program));
-  program->code[0] = NULL;
-  program->len = 0;
-  program->locals = new_lvar(NULL, 0, 0);
+  program->code = vector_new();
+  program->locals = hashmap_new();
   return program;
-}
-
-void
-add_lvar(LVar* lvar)
-{
-  lvar->next = program->locals;
-  program->locals = lvar;
 }
 
 LVar*
 find_lvar(Token* tok)
 {
-  for (LVar* lvar = program->locals; lvar; lvar = lvar->next) {
-    if (lvar->len == tok->len && !memcmp(lvar->name, tok->str, tok->len)) {
-      return lvar;
-    }
-  }
-  return NULL;
+  String* str = to_string(tok->str, tok->len);
+  return hashmap_get(program->locals, string_as_cstring(str));
 }
 
 LVar*
@@ -346,8 +341,9 @@ find_or_new_lvar(Token* tok)
 {
   LVar* lvar = find_lvar(tok);
   if (lvar == NULL) {
-    lvar = new_lvar(tok->str, tok->len, program->locals->offset + 16);
-    add_lvar(lvar);
+    lvar = lvar_new(tok->str, tok->len, program->latest_offset + 8);
+    program->latest_offset += 8;
+    hashmap_put(program->locals, string_as_cstring(lvar->name), lvar);
   }
   return lvar;
 }
@@ -393,6 +389,7 @@ view_node(Node* node, int depth)
     default:
       break;
   }
-  view_node(node->lhs, depth + 1);
-  view_node(node->rhs, depth + 1);
+  for (int i = 0; i < node->children->size; i++) {
+    view_node(vector_get(node->children, i), depth + 1);
+  }
 }

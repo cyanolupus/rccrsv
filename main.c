@@ -9,14 +9,14 @@ main(int argc, char** argv)
     return 1;
   }
 
-  program = new_program();
+  program = program_new();
 
   user_input = argv[1];
   Token* token = tokenize(argv[1]);
   add_node(program, &token);
 
-  for (int i = 0; i < program->len; i++) {
-    gen_stmt(program->code[i]);
+  for (int i = 0; i < program->code->size; i++) {
+    gen_stmt(vector_get_node(program->code, i));
   }
   return 0;
 }

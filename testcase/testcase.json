@@ -11,8 +11,13 @@
 	},
 	{
 		"name": "FOR_BLOCK",
-		"input": "main() { for (i=0; i<3; i=i+1) { return i; } }",
-		"output": 0
+		"input": "main() { a= 1; for (i=0; i<3; i=i+1) { a = a*2;} return a; }",
+		"output": 8
+	},
+	{
+		"name": "WHILE_RETURN",
+		"input": "main() { a= 1; while () { a = a*2; if (a>4) { return a; } } }",
+		"output": 8
 	},
 	{
 		"name": "MULFUNC0",

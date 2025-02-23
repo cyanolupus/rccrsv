@@ -1,11 +1,14 @@
 #include "reccursive.h"
+#include <stdlib.h>
 
-void
-vector_new(Vector* vec)
+Vector*
+vector_new()
 {
+  Vector* vec = malloc(sizeof(Vector));
+  vec->data = malloc(sizeof(void*) * 4);
   vec->size = 0;
   vec->capacity = 4;
-  vec->data = malloc(vec->capacity * sizeof(void*));
+  return vec;
 }
 
 void
@@ -26,6 +29,18 @@ vector_get(Vector* vec, size_t index)
   return vec->data[index];
 }
 
+Node*
+vector_get_node(Vector* vec, size_t index)
+{
+  return (Node*)vector_get(vec, index);
+}
+
+LVar*
+vector_get_lvar(Vector* vec, size_t index)
+{
+  return (LVar*)vector_get(vec, index);
+}
+
 unsigned int
 hash(const char* key)
 {
@@ -37,10 +52,12 @@ hash(const char* key)
   return hash % HASHMAP_SIZE;
 }
 
-void
-hashmap_new(HashMap* map)
+HashMap*
+hashmap_new()
 {
+  HashMap* map = malloc(sizeof(HashMap));
   memset(map->buckets, 0, sizeof(map->buckets));
+  return map;
 }
 
 void
@@ -74,4 +91,45 @@ hashmap_get(HashMap* map, const char* key)
     node = node->next;
   }
   return NULL;
+}
+
+String*
+string_new()
+{
+  String* str = malloc(sizeof(String));
+  str->data = malloc(sizeof(char) * 16);
+  str->size = 0;
+  str->capacity = 16;
+  return str;
+}
+
+String*
+to_string(char* s, size_t len)
+{
+  String* str = malloc(sizeof(String));
+  str->data = malloc(sizeof(char) * len);
+  str->size = len;
+  str->capacity = len;
+  memcpy(str->data, s, len);
+  return str;
+}
+
+void
+string_add(String* str, char* s, size_t len)
+{
+  if (str->size + len >= str->capacity) {
+    str->capacity = str->size + len;
+    str->data = realloc(str->data, str->capacity);
+  }
+  memcpy(str->data + str->size, s, len);
+  str->size += len;
+}
+
+const char*
+string_as_cstring(String* str)
+{
+  char* cstr = malloc(str->size + 1);
+  memcpy(cstr, str->data, str->size);
+  cstr[str->size] = '\0';
+  return cstr;
 }

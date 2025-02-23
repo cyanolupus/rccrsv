@@ -7,6 +7,53 @@
 
 int jmpcnt;
 
+// typedef
+typedef struct Vector Vector;
+typedef struct HashNode HashNode;
+typedef struct HashMap HashMap;
+typedef Vector String;
+
+typedef struct Token Token;
+typedef struct LVar LVar;
+typedef struct Node Node;
+typedef struct Program Program;
+
+// utils.c
+
+struct Vector {
+    void **data;
+    size_t size;
+    size_t capacity;
+};
+
+Vector *vector_new();
+void vector_push(Vector *vec, void *elem);
+void *vector_pop(Vector *vec);
+void *vector_get(Vector *vec, size_t index);
+Node *vector_get_node(Vector *vec, size_t index);
+LVar *vector_get_lvar(Vector *vec, size_t index);
+
+struct HashNode {
+    char *key;
+    void *value;
+    struct HashNode *next;
+};
+
+#define HASHMAP_SIZE 256
+
+struct HashMap {
+    HashNode *buckets[HASHMAP_SIZE];
+};
+
+HashMap *hashmap_new();
+void hashmap_put(HashMap *map, const char *key, void *value);
+void *hashmap_get(HashMap *map, const char *key);
+
+String *string_new();
+String *to_string(char *s, size_t len);
+void string_add(String *str, char *s, size_t len);
+const char *string_as_cstring(String *str);
+
 // tokenize.c
 typedef enum
 {
@@ -15,8 +62,6 @@ typedef enum
   TK_NUM,
   TK_EOF,
 } TokenKind;
-
-typedef struct Token Token;
 
 struct Token
 {
@@ -52,6 +97,7 @@ typedef enum
   ND_SUB,
   ND_MUL,
   ND_DIV,
+  ND_MOD,
   ND_EQ,
   ND_NE,
   ND_LT,
@@ -68,28 +114,18 @@ typedef enum
   ND_FUNC,
 } NodeKind;
 
-typedef struct LVar LVar;
-
 struct LVar {
-    LVar* next;
-    char* name;
-    int len;
+    String *name;
     int offset;
 };
-
-typedef struct Node Node;
 
 struct Node
 {
   NodeKind kind;
-  Node* lhs;
-  Node* rhs;
   int val;
-  Node* rrhs;
-  Node* rrrhs;
-  LVar* lvar;
-  Node *argv;
-  int argc;
+  Vector *children;
+  Vector *locals;
+  Vector *argv;
 };
 
 Node*
@@ -101,15 +137,13 @@ expr(Token** self);
 
 struct Program
 {
-  Node* code[100];
-    int len;
-  LVar* locals;
+  Vector *code;
+  HashMap *locals;
+  int latest_offset;
 };
 
-typedef struct Program Program;
-
 Program*
-new_program();
+program_new();
 
 void
 add_node(Program* program, Token** self);
@@ -118,7 +152,7 @@ Node*
 global(Token** self);
 
 LVar*
-new_lvar(char* name, int len, int offset);
+lvar_new(char* name, int len, int offset);
 
 void
 add_lvar(LVar* lvar);
@@ -137,35 +171,6 @@ gen(Node* node);
 
 void
 gen_stmt(Node* node);
-
-// utils.c
-
-typedef struct {
-    void **data;
-    size_t size;
-    size_t capacity;
-} Vector;
-
-Vector *new_vector();
-void vector_push(Vector *vec, void *elem);
-void *vector_pop(Vector *vec);
-void *vector_get(Vector *vec, size_t index);
-
-typedef struct HashNode {
-    char *key;
-    void *value;
-    struct HashNode *next;
-} HashNode;
-
-#define HASHMAP_SIZE 256
-
-typedef struct {
-    HashNode *buckets[HASHMAP_SIZE];
-} HashMap;
-
-void hashmap_new(HashMap *map);
-void hashmap_put(HashMap *map, const char *key, void *value);
-void *hashmap_get(HashMap *map, const char *key);
 
 // error.c
 void
