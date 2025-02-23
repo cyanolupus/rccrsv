@@ -148,7 +148,8 @@ tokenize(char* p)
       continue;
     }
 
-    if (strncmp(p, "return", 6) == 0 && !isalnum(p[6])) {
+    if ((strncmp(p, "return", 6) == 0 || strncmp(p, "sizeof", 6) == 0) &&
+        !isalnum(p[6])) {
       cur = token_new(TK_RESERVED, cur, p, 6);
       p += 6;
       continue;
