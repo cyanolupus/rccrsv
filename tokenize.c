@@ -90,6 +90,14 @@ tokenize(char* p)
       continue;
     }
 
+    if (isdigit(*p)) {
+      cur = token_new(TK_NUM, cur, p, 0);
+      char* q = p;
+      cur->val = strtol(p, &p, 10);
+      cur->len = p - q;
+      continue;
+    }
+
     if (strncmp(p, "<<=", 3) == 0 || strncmp(p, ">>=", 3) == 0) {
       cur = token_new(TK_RESERVED, cur, p, 2);
       p += 2;
@@ -116,23 +124,15 @@ tokenize(char* p)
       continue;
     }
 
-    if (isdigit(*p)) {
-      cur = token_new(TK_NUM, cur, p, 0);
-      char* q = p;
-      cur->val = strtol(p, &p, 10);
-      cur->len = p - q;
-      continue;
-    }
-
-    if (strncmp(p, "return", 6) == 0 && !isalnum(p[6])) {
-      cur = token_new(TK_RESERVED, cur, p, 6);
-      p += 6;
-      continue;
-    }
-
     if (strncmp(p, "if", 2) == 0 && !isalnum(p[2])) {
       cur = token_new(TK_RESERVED, cur, p, 2);
       p += 2;
+      continue;
+    }
+
+    if (strncmp(p, "for", 3) == 0 && !isalnum(p[3])) {
+      cur = token_new(TK_RESERVED, cur, p, 3);
+      p += 3;
       continue;
     }
 
@@ -148,9 +148,9 @@ tokenize(char* p)
       continue;
     }
 
-    if (strncmp(p, "for", 3) == 0 && !isalnum(p[3])) {
-      cur = token_new(TK_RESERVED, cur, p, 3);
-      p += 3;
+    if (strncmp(p, "return", 6) == 0 && !isalnum(p[6])) {
+      cur = token_new(TK_RESERVED, cur, p, 6);
+      p += 6;
       continue;
     }
 
