@@ -16,57 +16,57 @@
 	},
 	{
 		"name": "FOR_BLOCK",
-		"input": "int main() { a= 1; for (i=0; i<3; i=i+1) { a = a*2;} return a; }",
+		"input": "int main() { int a= 1; for (int i=0; i<3; i=i+1) { a = a*2;} return a; }",
 		"output": 8
 	},
 	{
 		"name": "WHILE_RETURN",
-		"input": "int main() { a= 1; while () { a = a*2; if (a>4) { return a; } } }",
+		"input": "int main() { int a= 1; while () { a = a*2; if (a>4) { return a; } } }",
 		"output": 8
 	},
 	{
 		"name": "EXTERNAL_FUNC0",
-		"input": "int main() { return foo(); }",
+		"input": "int foo(); int main() { return foo(); }",
 		"output": 123
 	},
 	{
 		"name": "EXTERNAL_FUNC1",
-		"input": "int main() { return foo() + bar(3,5); }",
+		"input": "int foo(); int bar(int a, int b); int main() { return foo() + bar(3,5); }",
 		"output": 131
 	},
 	{
 		"name": "MULFUNC0",
-		"input": "int main() { return a(); } int a() { return 3 * 4; }",
+		"input": "int a() { return 3 * 4; } int main() { return a(); }",
 		"output": 12
 	},
 	{
 		"name": "MULFUNC1",
-		"input": "int main() { return a() + a(); } int a() { return 3 * 4; }",
+		"input": "int a() { return 3 * 4; } int main() { return a() + a(); }",
 		"output": 24
 	},
 	{
 		"name": "MULFUNC2",
-		"input": "int main() { return a() + b(); } int a() { return 3 * 4; } int b() { return 5 / 2; }",
+		"input": "int a() { return 3 * 4; } int b() { return 5 / 2; }int main() { return a() + b(); }",
 		"output": 14
 	},
 	{
 		"name": "ARG0",
-		"input": "int main() { return a(1); } int a(x) { return x * 4; }",
+		"input": "int a(int x) { return x * 4; }int main() { return a(1); }",
 		"output": 4
 	},
 	{
 		"name": "ARG1",
-		"input": "int main() { return a(9,3); } int a(x,y) { return x / y; }",
+		"input": "int a(int x, int y) { return x / y; } int main() { return a(9,3); }",
 		"output": 3
 	},
 	{
 		"name": "POSTINCREMENT",
-		"input": "int main() { a=1; if (a++ == 1) { return 123 + a; } else { return 12 + a; } }",
+		"input": "int main() { int a=1; if (a++ == 1) { return 123 + a; } else { return 12 + a; } }",
 		"output": 125
 	},
 	{
 		"name": "PREINCREMENT",
-		"input": "int main() { a=1; if (++a == 2) { return 123 + a; } else { return 12 + a; } }",
+		"input": "int main() { int a=1; if (++a == 2) { return 123 + a; } else { return 12 + a; } }",
 		"output": 125
 	},
 	{
@@ -81,7 +81,7 @@
 	},
 	{
 		"name": "REFDEREF",
-		"input": "int main() { a=1; b=&a; c=*b; return c; }",
+		"input": "int main() { int a=1; int b=&a; int c=*b; return c; }",
 		"output": 1
 	},
 	{
@@ -121,52 +121,52 @@
 	},
 	{
 		"name": "ASSIGN_ADD",
-		"input": "int main() { a=1; a+=2; return a; }",
+		"input": "int main() { int a=1; a+=2; return a; }",
 		"output": 3
 	},
 	{
 		"name": "ASSIGN_SUB",
-		"input": "int main() { a=3; a-=2; return a; }",
+		"input": "int main() { int a=3; a-=2; return a; }",
 		"output": 1
 	},
 	{
 		"name": "ASSIGN_MUL",
-		"input": "int main() { a=2; a*=3; return a; }",
+		"input": "int main() { int a=2; a*=3; return a; }",
 		"output": 6
 	},
 	{
 		"name": "ASSIGN_DIV",
-		"input": "int main() { a=6; a/=3; return a; }",
+		"input": "int main() { int a=6; a/=3; return a; }",
 		"output": 2
 	},
 	{
 		"name": "ASSIGN_MOD",
-		"input": "int main() { a=5; a%=3; return a; }",
+		"input": "int main() { int a=5; a%=3; return a; }",
 		"output": 2
 	},
 	{
 		"name": "ASSIGN_LSHIFT",
-		"input": "int main() { a=1; a<<=3; return a; }",
+		"input": "int main() { int a=1; a<<=3; return a; }",
 		"output": 8
 	},
 	{
 		"name": "ASSIGN_RSHIFT",
-		"input": "int main() { a=8; a>>=3; return a; }",
+		"input": "int main() { int a=8; a>>=3; return a; }",
 		"output": 1
 	},
 	{
 		"name": "ASSIGN_AND",
-		"input": "int main() { a=15; a&=3; return a; }",
+		"input": "int main() { int a=15; a&=3; return a; }",
 		"output": 3
 	},
 	{
 		"name": "ASSIGN_OR",
-		"input": "int main() { a=8; a|=4; return a; }",
+		"input": "int main() { int a=8; a|=4; return a; }",
 		"output": 12
 	},
 	{
 		"name": "ASSIGN_XOR",
-		"input": "int main() { a=15; a^=3; return a; }",
+		"input": "int main() { int a=15; a^=3; return a; }",
 		"output": 12
 	},
 	{

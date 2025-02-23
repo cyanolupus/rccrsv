@@ -1,6 +1,4 @@
 #include "reccursive.h"
-#include <stdio.h>
-#include <stdlib.h>
 
 Node*
 node_new(NodeKind kind, Node* lhs, Node* rhs)
@@ -101,7 +99,11 @@ primary(Tokens* tokens)
 {
   Token* tok = token_consume_ident(tokens);
   if (tok) {
-    LVar* lvar = find_or_new_lvar(tok);
+    LVar* lvar = find_lvar(tok);
+    if (!lvar) {
+      error_at_until(
+        tok->str, tok->len, "undefined variable: %.*s", tok->len, tok->str);
+    }
     if (token_consume(tokens, "(")) {
       Node* node = node_new_call(lvar);
       while (!token_consume(tokens, ")")) {
@@ -365,6 +367,15 @@ assign(Tokens* tokens)
 Node*
 expr(Tokens* tokens)
 {
+  if (token_consume(tokens, "int")) {
+    Token* tok = token_expect_ident(tokens);
+    LVar* lvar = find_or_new_lvar(tok);
+    Node* node = node_new_lvar(lvar);
+    if (token_consume(tokens, "=")) {
+      node = node_new(ND_ASSIGN, node, expr(tokens));
+    }
+    return node;
+  }
   return assign(tokens);
 }
 
@@ -440,6 +451,7 @@ add_node(Program* program, Tokens* tokens)
         while (!token_consume(tokens, ")")) {
           if (node->argv->size > 1)
             token_expect(tokens, ",");
+          token_expect(tokens, "int");
           Token* arg_ident = token_consume_ident(tokens);
           if (arg_ident) {
             LVar* lvar = find_or_new_lvar(arg_ident);
@@ -448,8 +460,6 @@ add_node(Program* program, Tokens* tokens)
         }
 
         if (token_consume(tokens, ";")) {
-          node->val = program->code->size;
-          vector_push(program->code, node);
           continue;
         }
         if (token_consume(tokens, "{")) {

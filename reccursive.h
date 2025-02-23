@@ -203,6 +203,9 @@ void
 error_at(char* loc, char* fmt, ...);
 
 void
+error_at_until(char* loc, int len, char* fmt, ...);
+
+void
 error(char* fmt, ...);
 
 char *user_input;
