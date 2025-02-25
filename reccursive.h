@@ -80,6 +80,9 @@ typedef struct Type Type;
 
 // utils.c
 
+bool
+isnondigit(char c);
+
 struct Vector {
     void **data;
     size_t size;

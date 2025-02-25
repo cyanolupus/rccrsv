@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 
 int
 foo()
@@ -11,4 +12,19 @@ int
 bar(int a, int b)
 {
   return a + b;
+}
+
+void
+alloc_array(int** p, int n)
+{
+  *p = malloc(sizeof(int) * n);
+  for (int i = 0; i < n; i++) {
+    (*p)[i] = 1 << i;
+  }
+}
+
+void
+print_int(int x)
+{
+  printf("%u\n", x);
 }

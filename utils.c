@@ -1,5 +1,11 @@
 #include "reccursive.h"
 
+bool
+isnondigit(char c)
+{
+  return ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z') || c == '_';
+}
+
 Vector*
 vector_new()
 {

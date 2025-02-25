@@ -203,7 +203,7 @@ tokenize(char* p)
       continue;
     }
 
-    if (isalpha(*p)) {
+    if (isnondigit(*p)) {
       // data type
       if (strncmp(p, "int", 3) == 0 && !isalnum(p[3])) {
         vector_push(tokens->tokens, token_new(TK_RESERVED, p, 3));
@@ -336,7 +336,7 @@ tokenize(char* p)
       }
 
       char* q = p;
-      while (isalnum(*p))
+      while (isnondigit(*p) || isdigit(*p))
         p++;
       vector_push(tokens->tokens, token_new(TK_IDENT, q, p - q));
       continue;

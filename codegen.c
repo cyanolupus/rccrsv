@@ -187,10 +187,20 @@ gen_2op(Node* node)
 
   switch (node->kind) {
     case ND_ADD:
-      writer("  add x0, x0, x1\n");
+      if (lhs->type->kind == TY_PTR) {
+        writer("  mov x2, #%d\n", type_sizeof(lhs->type->ptr_to));
+        writer("  madd x0, x1, x2, x0\n");
+      } else {
+        writer("  add x0, x0, x1\n");
+      }
       return;
     case ND_SUB:
-      writer("  sub x0, x0, x1\n");
+      if (lhs->type->kind == TY_PTR) {
+        writer("  mov x2, #%d\n", type_sizeof(lhs->type->ptr_to));
+        writer("  msub x0, x1, x2, x0\n");
+      } else {
+        writer("  sub x0, x0, x1\n");
+      }
       return;
     case ND_MUL:
       writer("  mul x0, x0, x1\n");

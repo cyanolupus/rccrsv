@@ -200,13 +200,18 @@
 		"output": 8
 	},
 	{
-		"name": "REDEFINITION0",
-		"input": "int main() { int x; int* x; return 123; }",
-		"output": 123
+		"name": "ADDR_ADD0",
+		"input": "void alloc_array(int **p2, int n); int main() { int *p; alloc_array(&p,4); int *q = p + 2; return *q;}",
+		"output": 4
 	},
 	{
-		"name": "REDEFINITION1",
-		"input": "int main() { int x; return 1; } int main(int a) { int x; return 1; }",
-		"output": 1
+		"name": "ADDR_ADD1",
+		"input": "void alloc_array(int **p2, int n); int main() { int *p; alloc_array(&p, 4); int *q = p + 3; return *q; }",
+		"output": 8
+	},
+	{
+		"name": "ADDR_SUB0",
+		"input": "void alloc_array(int **p2, int n); int main() { int *p; alloc_array(&p, 4); int *q = p + 3; int *r = q - 2; return *r; }",
+		"output": 2
 	}
 ]
