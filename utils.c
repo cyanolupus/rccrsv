@@ -3,7 +3,7 @@
 Vector*
 vector_new()
 {
-  Vector* vec = malloc(sizeof(Vector));
+  Vector* vec = calloc(1, sizeof(Vector));
   vec->data = malloc(sizeof(void*) * 4);
   vec->size = 0;
   vec->capacity = 4;
@@ -14,8 +14,12 @@ void
 vector_push(Vector* vec, void* item)
 {
   if (vec->size == vec->capacity) {
-    vec->capacity *= 2;
-    vec->data = realloc(vec->data, vec->capacity * sizeof(void*));
+    size_t new_capacity = vec->capacity * 2;
+    void** new_data = malloc(sizeof(void*) * new_capacity);
+    memcpy(new_data, vec->data, sizeof(void*) * vec->size);
+    free(vec->data);
+    vec->data = new_data;
+    vec->capacity = new_capacity;
   }
   vec->data[vec->size++] = item;
 }
@@ -44,6 +48,12 @@ LVar*
 vector_get_lvar(Vector* vec, size_t index)
 {
   return (LVar*)vector_get(vec, index);
+}
+
+Type*
+vector_get_type(Vector* vec, size_t index)
+{
+  return (Type*)vector_get(vec, index);
 }
 
 unsigned int
@@ -99,42 +109,78 @@ hashmap_get(HashMap* map, const char* key)
 }
 
 String*
-string_new()
+string_new(const char* initial)
 {
-  String* str = malloc(sizeof(String));
-  str->data = malloc(sizeof(char) * 16);
-  str->size = 0;
-  str->capacity = 16;
+  size_t initial_size = initial ? strlen(initial) : 0;
+  size_t capacity = initial_size + 1;
+
+  String* str = (String*)malloc(sizeof(String));
+  if (!str)
+    return NULL;
+
+  str->data = (char*)malloc(capacity);
+  if (!str->data) {
+    free(str);
+    return NULL;
+  }
+
+  if (initial) {
+    memcpy(str->data, initial, initial_size);
+  }
+  str->data[initial_size] = '\0';
+  str->size = initial_size;
+  str->capacity = capacity;
+
   return str;
 }
 
 String*
-to_string(char* s, size_t len)
+string_new_with_len(char* s, size_t len)
 {
-  String* str = malloc(sizeof(String));
-  str->data = malloc(sizeof(char) * len);
-  str->size = len;
-  str->capacity = len;
-  memcpy(str->data, s, len);
-  return str;
-}
+  String* str = string_new(NULL);
+  if (!str)
+    return NULL;
 
-void
-string_add(String* str, char* s, size_t len)
-{
-  if (str->size + len >= str->capacity) {
-    str->capacity = str->size + len;
-    str->data = realloc(str->data, str->capacity);
+  if (str->capacity < len + 1) {
+    size_t new_capacity = (len + 1) * 2;
+    char* new_data = (char*)realloc(str->data, new_capacity);
+    if (!new_data) {
+      free(str->data);
+      free(str);
+      return NULL;
+    }
+    str->data = new_data;
+    str->capacity = new_capacity;
   }
-  memcpy(str->data + str->size, s, len);
-  str->size += len;
+
+  memcpy(str->data, s, len);
+  str->data[len] = '\0';
+  str->size = len;
+  return str;
 }
 
 const char*
 string_as_cstring(String* str)
 {
-  char* cstr = malloc(str->size + 1);
-  memcpy(cstr, str->data, str->size);
-  cstr[str->size] = '\0';
-  return cstr;
+  return str->data;
+}
+
+void
+string_append(String* str, const char* s)
+{
+  size_t suffix_len = strlen(s);
+  size_t new_size = str->size + suffix_len;
+
+  if (new_size + 1 > str->capacity) {
+    size_t new_capacity = (new_size + 1) * 2;
+    char* new_data = calloc(new_capacity, sizeof(char));
+    memcpy(new_data, str->data, str->size);
+    free(str->data);
+    str->data = new_data;
+    str->capacity = new_capacity;
+  }
+
+  memcpy(str->data + str->size, s, suffix_len);
+  str->size = new_size;
+  str->data[new_size] = '\0';
 }

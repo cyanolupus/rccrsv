@@ -85,9 +85,9 @@
 		"output": 1
 	},
 	{
-		"name": "SIZEOF",
+		"name": "SIZEOF0",
 		"input": "int main() { return sizeof(1); }",
-		"output": 8
+		"output": 4
 	},
 	{
 		"name": "SHIFT",
@@ -188,5 +188,25 @@
 		"name": "PTR0",
 		"input": "int *main() {int x; int *y; y = &x; *y = 3; return x; }",
 		"output": 3
+	},
+	{
+		"name": "SIZEOF1",
+		"input": "int main() { long x; return sizeof(x); }",
+		"output": 8
+	},
+	{
+		"name": "SIZEOF2",
+		"input": "int main() { int* x; return sizeof(x); }",
+		"output": 8
+	},
+	{
+		"name": "REDEFINITION0",
+		"input": "int main() { int x; int* x; return 123; }",
+		"output": 123
+	},
+	{
+		"name": "REDEFINITION1",
+		"input": "int main() { int x; return 1; } int main(int a) { int x; return 1; }",
+		"output": 1
 	}
 ]

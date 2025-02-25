@@ -143,16 +143,16 @@ gen_block(Node* node)
 void
 gen_func(Node* node)
 {
-  LVar* func = vector_get_lvar(node->argv, 0);
+  LVar* func = vector_get_lvar(node->argv, node->argv->size - 1);
   writer(".global _%s\n", string_as_cstring(func->name));
   writer("_%s:\n", string_as_cstring(func->name));
   writer("  stp fp, lr, [sp, #-16]!\n");
   writer("  mov fp, sp\n");
   writer("  sub sp, sp, %d\n", 128);
-  for (int i = 1; i < node->argv->size; i++) {
+  for (int i = 0; i < node->argv->size - 1; i++) {
     LVar* lvar = vector_get_lvar(node->argv, i);
     if (lvar) {
-      writer("  str x%d, [fp, #-%d]\n", i - 1, lvar->offset);
+      writer("  str x%d, [fp, #-%d]\n", i, lvar->offset);
     }
   }
   for (int i = 0; i < node->children->size; i++) {
@@ -270,7 +270,7 @@ gen_1op(Node* node)
       writer("  ldr x0, [x0]\n");
       return;
     case ND_SIZEOF:
-      writer("  mov x0, 8\n"); // TODO
+      writer("  mov x0, %d\n", type_sizeof(lhs->type));
       return;
     default:
       error("NodeKind is not supported %d", node->kind);

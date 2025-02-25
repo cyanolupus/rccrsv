@@ -56,19 +56,19 @@ typedef enum
 {
   TY_INT,
   TY_PTR,
-  TY_FUNC,
   TY_VOID,
   TY_LONG,
   TY_CHAR,
   TY_FLOAT,
   TY_SHORT,
   TY_DOUBLE,
+  TY_FUNC,
 } TypeKind;
 
 typedef struct Vector Vector;
 typedef struct HashNode HashNode;
 typedef struct HashMap HashMap;
-typedef Vector String;
+typedef struct String String;
 
 typedef struct Token Token;
 typedef struct Tokens Tokens;
@@ -93,6 +93,7 @@ void *vector_get(Vector *vec, size_t index);
 Token *vector_get_token(Vector *vec, size_t index);
 Node *vector_get_node(Vector *vec, size_t index);
 LVar *vector_get_lvar(Vector *vec, size_t index);
+Type *vector_get_type(Vector *vec, size_t index);
 
 struct HashNode {
     char *key;
@@ -110,9 +111,15 @@ HashMap *hashmap_new();
 void hashmap_put(HashMap *map, const char *key, void *value);
 void *hashmap_get(HashMap *map, const char *key);
 
-String *string_new();
-String *to_string(char *s, size_t len);
-void string_add(String *str, char *s, size_t len);
+struct String {
+    char *data;
+    size_t size;
+    size_t capacity;
+};
+
+String *string_new(const char *initial);
+String *string_new_with_len(char *s, size_t len);
+void string_append(String *str, const char *s);
 const char *string_as_cstring(String *str);
 
 // tokenize.c
@@ -157,13 +164,15 @@ token_expect_type(Tokens* self);
 bool
 token_at_eof(Tokens* self);
 
+void
+token_view(Tokens* self);
+
 // parse.c
 
 struct LVar {
     String *name;
     int offset;
     Type *type;
-    bool is_func;
 };
 
 struct Node
@@ -173,6 +182,7 @@ struct Node
   Vector *children;
   Vector *locals;
   Vector *argv;
+  Type *type;
 };
 
 Node*
@@ -195,19 +205,16 @@ void
 add_node(Program* program, Tokens* tokens);
 
 Node*
-global(Token** self);
+global(Tokens* tokens);
 
 LVar*
-lvar_new(char* name, int len, int offset, Type* type, bool is_func);
-
-LVar*
-find_lvar(Token* tok);
+lvar_new(char* name, int len, int offset, Type* type);
 
 LVar*
 expect_lvar(Token* tok);
 
 LVar*
-add_lvar(Token* tok, Type* type, bool is_func);
+add_lvar(Token* tok, Type* type);
 
 Program* program;
 
@@ -224,6 +231,8 @@ gen_expr(Node* node);
 // type.c
 struct Type {
   TypeKind kind;
+  size_t size;
+  Vector *args;
   struct Type *ptr_to;
 };
 
@@ -254,7 +263,19 @@ type_new_short();
 Type*
 type_new_double();
 
-char*
+Type*
+type_new_func(Type* ret_type);
+
+size_t
+type_sizeof(Type* type);
+
+bool
+type_equals(Type* lhs, Type* rhs);
+
+bool
+type_func_equals(Type* lhs, Type* rhs);
+
+String*
 type_to_string(Type* type);
 
 // error.c

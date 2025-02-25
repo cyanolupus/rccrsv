@@ -69,15 +69,13 @@ node_new_call(LVar* lvar)
 }
 
 Node*
-node_new_func(LVar* lvar)
+node_new_func()
 {
   Node* node = calloc(1, sizeof(Node));
   node->kind = ND_FUNC;
   node->val = 0;
   node->argv = vector_new();
-  vector_push(node->argv, lvar);
   node->children = vector_new();
-  node->type = lvar->type;
   return node;
 }
 
@@ -111,6 +109,19 @@ node_new_quadruplet(NodeKind kind,
   vector_push(node->children, rrrhs);
   node->type = type;
   return node;
+}
+
+void
+node_view_tree(Node* node, size_t depth)
+{
+  if (!node)
+    return;
+  for (int i = 0; i < depth; i++)
+    fprintf(stderr, "  ");
+  fprintf(stderr, "kind: %03d\n", node->kind);
+  for (int i = 0; i < node->children->size; i++) {
+    node_view_tree(vector_get_node(node->children, i), depth + 1);
+  }
 }
 
 Node*
@@ -357,36 +368,36 @@ assign(Tokens* tokens)
   Node* node = conditional(tokens);
 
   if (token_consume(tokens, "="))
-    node = node_new_rtyped(ND_ASSIGN, node, assign(tokens));
+    node = node_new_ltyped(ND_ASSIGN, node, assign(tokens));
   else if (token_consume(tokens, "+="))
-    node = node_new_rtyped(
+    node = node_new_ltyped(
       ND_ASSIGN, node, node_new_ltyped(ND_ADD, node, assign(tokens)));
   else if (token_consume(tokens, "-="))
-    node = node_new_rtyped(
+    node = node_new_ltyped(
       ND_ASSIGN, node, node_new_ltyped(ND_SUB, node, assign(tokens)));
   else if (token_consume(tokens, "*="))
-    node = node_new_rtyped(
+    node = node_new_ltyped(
       ND_ASSIGN, node, node_new_ltyped(ND_MUL, node, assign(tokens)));
   else if (token_consume(tokens, "/="))
-    node = node_new_rtyped(
+    node = node_new_ltyped(
       ND_ASSIGN, node, node_new_ltyped(ND_DIV, node, assign(tokens)));
   else if (token_consume(tokens, "%="))
-    node = node_new_rtyped(
+    node = node_new_ltyped(
       ND_ASSIGN, node, node_new_ltyped(ND_MOD, node, assign(tokens)));
   else if (token_consume(tokens, "&="))
-    node = node_new_rtyped(
+    node = node_new_ltyped(
       ND_ASSIGN, node, node_new_ltyped(ND_AND, node, assign(tokens)));
   else if (token_consume(tokens, "^="))
-    node = node_new_rtyped(
+    node = node_new_ltyped(
       ND_ASSIGN, node, node_new_ltyped(ND_XOR, node, assign(tokens)));
   else if (token_consume(tokens, "|="))
-    node = node_new_rtyped(
+    node = node_new_ltyped(
       ND_ASSIGN, node, node_new_ltyped(ND_OR, node, assign(tokens)));
   else if (token_consume(tokens, "<<="))
-    node = node_new_rtyped(
+    node = node_new_ltyped(
       ND_ASSIGN, node, node_new_ltyped(ND_SHIFT_L, node, assign(tokens)));
   else if (token_consume(tokens, ">>="))
-    node = node_new_rtyped(
+    node = node_new_ltyped(
       ND_ASSIGN, node, node_new_ltyped(ND_SHIFT_R, node, assign(tokens)));
   return node;
 }
@@ -397,12 +408,14 @@ expr(Tokens* tokens)
   Type* type = token_consume_type(tokens);
   if (type) {
     Token* tok = token_expect_ident(tokens);
-    LVar* lvar = add_lvar(tok, type, false);
-    Node* node = node_new_lvar(lvar);
+    LVar* lvar = add_lvar(tok, type);
     if (token_consume(tokens, "=")) {
-      node = node_new_rtyped(ND_ASSIGN, node, expr(tokens));
+      Node* node =
+        node_new_ltyped(ND_ASSIGN, node_new_lvar(lvar), assign(tokens));
+      return node;
+    } else {
+      return NULL;
     }
-    return node;
   }
   if (token_consume(tokens, "return")) {
     Node* node = node_new_ltyped(ND_RETURN, expr(tokens), NULL);
@@ -464,52 +477,75 @@ stmt(Tokens* tokens)
   return node;
 }
 
+Node*
+global(Tokens* tokens)
+{
+  Type* type = token_consume_type(tokens);
+  Token* ident = token_consume_ident(tokens);
+  if (ident) {
+    Node* node;
+
+    if (token_consume(tokens, "(")) {
+      Type* func_type = type_new_func(type);
+      node = node_new_func();
+      while (!token_consume(tokens, ")")) {
+        if (func_type->args->size > 0)
+          token_expect(tokens, ",");
+        if (token_consume(tokens, "void")) {
+          break;
+        }
+        Type* arg_type = token_expect_type(tokens);
+        vector_push(func_type->args, arg_type);
+        Token* arg_ident = token_expect_ident(tokens);
+        LVar* lvar = add_lvar(arg_ident, arg_type);
+        vector_push(node->argv, lvar);
+      }
+
+      LVar* lvar = add_lvar(ident, func_type);
+      node->type = func_type;
+      vector_push(node->argv, lvar);
+
+      if (token_consume(tokens, ";")) {
+        return NULL;
+      }
+
+      if (token_consume(tokens, "{")) {
+        while (!token_consume(tokens, "}")) {
+          vector_push(node->children, stmt(tokens));
+        }
+      }
+      node->val = program->code->size;
+      return node;
+    } else if (token_consume(tokens, "=")) {
+      node = node_new_ltyped(
+        ND_ASSIGN, node_new_lvar(add_lvar(ident, type)), expr(tokens));
+    } else {
+      add_lvar(ident, type);
+      return NULL;
+    }
+  }
+
+  return NULL;
+}
+
 void
 add_node(Program* program, Tokens* tokens)
 {
   while (!token_at_eof(tokens)) {
-    Type* type = token_expect_type(tokens);
-
-    Token* funcname_ident = token_consume_ident(tokens);
-    if (funcname_ident) {
-      LVar* lvar = add_lvar(funcname_ident, type, true);
-      Node* node = node_new_func(lvar);
-
-      if (token_consume(tokens, "(")) {
-        while (!token_consume(tokens, ")")) {
-          if (node->argv->size > 1)
-            token_expect(tokens, ",");
-          Type* arg_type = token_expect_type(tokens);
-          Token* arg_ident = token_consume_ident(tokens);
-          if (arg_ident) {
-            LVar* lvar = add_lvar(arg_ident, arg_type, false);
-            vector_push(node->argv, lvar);
-          }
-        }
-
-        if (token_consume(tokens, ";")) {
-          continue;
-        }
-        if (token_consume(tokens, "{")) {
-          while (!token_consume(tokens, "}")) {
-            vector_push(node->children, stmt(tokens));
-          }
-        }
-        node->val = program->code->size;
-        vector_push(program->code, node);
-      }
+    Node* node = global(tokens);
+    if (node) {
+      vector_push(program->code, node);
     }
   }
 }
 
 LVar*
-lvar_new(char* name, int len, int offset, Type* type, bool is_func)
+lvar_new(char* name, int len, int offset, Type* type)
 {
   LVar* lvar = calloc(1, sizeof(LVar));
-  lvar->name = to_string(name, len);
+  lvar->name = string_new_with_len(name, len);
   lvar->offset = offset;
   lvar->type = type;
-  lvar->is_func = is_func;
   return lvar;
 }
 
@@ -525,7 +561,7 @@ program_new()
 LVar*
 find_lvar(Token* tok)
 {
-  String* str = to_string(tok->str, tok->len);
+  String* str = string_new_with_len(tok->str, tok->len);
   return hashmap_get(program->locals, string_as_cstring(str));
 }
 
@@ -541,31 +577,25 @@ expect_lvar(Token* tok)
 }
 
 LVar*
-add_lvar(Token* tok, Type* type, bool is_func)
+add_lvar(Token* tok, Type* type)
 {
   LVar* lvar = find_lvar(tok);
   if (lvar == NULL) {
-    lvar =
-      lvar_new(tok->str, tok->len, program->latest_offset + 8, type, is_func);
+    lvar = lvar_new(tok->str, tok->len, program->latest_offset + 8, type);
     program->latest_offset += 8;
     hashmap_put(program->locals, string_as_cstring(lvar->name), lvar);
+  } else {
+    if (!type_equals(lvar->type, type)) {
+      error_at_until(tok->str,
+                     tok->len,
+                     "conflicting types for '%.*s' %s vs %s",
+                     tok->len,
+                     tok->str,
+                     type_to_string(lvar->type)->data,
+                     type_to_string(type)->data);
+    }
   }
-  if (lvar->type->kind != type->kind) {
-    error_at_until(tok->str,
-                   tok->len,
-                   "conflicting types for '%.*s' %s vs %s",
-                   tok->len,
-                   tok->str,
-                   type_to_string(lvar->type),
-                   type_to_string(type));
-  }
-  if (lvar->is_func && !is_func) {
-    error_at_until(tok->str,
-                   tok->len,
-                   "redefinition function of '%.*s'",
-                   tok->len,
-                   tok->str);
-  }
+
   return lvar;
 }
 

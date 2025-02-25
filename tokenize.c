@@ -1,5 +1,4 @@
 #include "reccursive.h"
-#include <string.h>
 
 Token*
 token_new(TokenKind kind, char* str, int len)
@@ -57,7 +56,7 @@ token_expect(Tokens* tokens, char* op)
   if (tok->kind != TK_RESERVED)
     error_at(tok->str, "Token is not RESERVED");
   else if (strlen(op) != tok->len)
-    error_at(tok->str, "Token length is not %d", strlen(op));
+    error_at(tok->str, "Token length is not %d, but %d", strlen(op), tok->len);
   else if (memcmp(tok->str, op, tok->len)) {
     char* token_str = calloc(tok->len + 1, sizeof(char));
     strncpy(token_str, tok->str, tok->len);
