@@ -28,3 +28,9 @@ print_int(int x)
 {
   printf("%u\n", x);
 }
+
+void
+print_ptr(int* p)
+{
+  printf("%p\n", p);
+}

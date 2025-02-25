@@ -6,22 +6,6 @@ type_new(TypeKind kind, Type* ptr_to)
   Type* type = calloc(1, sizeof(Type));
   type->kind = kind;
   type->ptr_to = ptr_to;
-  if (kind == TY_INT)
-    type->size = 4;
-  else if (kind == TY_PTR)
-    type->size = 8;
-  else if (kind == TY_VOID)
-    type->size = 0;
-  else if (kind == TY_LONG)
-    type->size = 8;
-  else if (kind == TY_CHAR)
-    type->size = 1;
-  else if (kind == TY_FLOAT)
-    type->size = 4;
-  else if (kind == TY_SHORT)
-    type->size = 2;
-  else if (kind == TY_DOUBLE)
-    type->size = 8;
   return type;
 }
 
@@ -47,6 +31,12 @@ Type*
 type_new_long()
 {
   return type_new(TY_LONG, NULL);
+}
+
+Type*
+type_new_long_long()
+{
+  return type_new(TY_LONG_LONG, NULL);
 }
 
 Type*
@@ -82,17 +72,63 @@ type_new_func(Type* ret_type)
   return type;
 }
 
+Type*
+type_new_array(Type* ptr_to, size_t size)
+{
+  Type* type = type_new(TY_ARRAY, ptr_to);
+  type->size = size;
+  return type;
+}
+
 size_t
 type_sizeof(Type* type)
 {
-  return type->size;
+  if (type->kind == TY_INT)
+    return 4;
+  else if (type->kind == TY_PTR)
+    return 8;
+  else if (type->kind == TY_VOID)
+    return 0;
+  else if (type->kind == TY_LONG)
+    return 8;
+  else if (type->kind == TY_LONG_LONG)
+    return 16;
+  else if (type->kind == TY_CHAR)
+    return 1;
+  else if (type->kind == TY_FLOAT)
+    return 4;
+  else if (type->kind == TY_SHORT)
+    return 2;
+  else if (type->kind == TY_DOUBLE)
+    return 8;
+  else if (type->kind == TY_FUNC)
+    return 0;
+  else if (type->kind == TY_ARRAY)
+    return type->size * type_sizeof(type->ptr_to);
+  error("Unknown type");
+  return 0;
+}
+
+size_t
+type_sizeof_aligned(Type* type)
+{
+  size_t size = type_sizeof(type);
+  if (type->kind == TY_ARRAY)
+    return type->size * type_sizeof_aligned(type->ptr_to);
+  if (size < 4)
+    return 4;
+  return size;
 }
 
 bool
 type_equals(Type* lhs, Type* rhs)
 {
+  if (lhs == NULL || rhs == NULL)
+    return false;
   if (lhs->kind == TY_PTR && rhs->kind == TY_PTR)
     return type_equals(lhs->ptr_to, rhs->ptr_to);
+  if (lhs->kind == TY_ARRAY && rhs->kind == TY_ARRAY)
+    return type_equals(lhs->ptr_to, rhs->ptr_to) && lhs->size == rhs->size;
   if (lhs->kind == TY_FUNC && rhs->kind == TY_FUNC)
     return type_func_equals(lhs, rhs);
   return lhs->kind == rhs->kind;
@@ -103,9 +139,6 @@ type_func_equals(Type* lhs, Type* rhs)
 {
   if (lhs->args->size != rhs->args->size)
     return false;
-
-  fprintf(stderr, "lhs->args->size: %zu\n", lhs->args->size);
-  fprintf(stderr, "rhs->args->size: %zu\n", rhs->args->size);
 
   for (int i = 0; i < lhs->args->size; i++) {
     Type* l = vector_get_type(lhs->args, i);
@@ -146,8 +179,22 @@ type_func_to_string(Type* type)
 }
 
 String*
+type_array_to_string(Type* type)
+{
+  String* base = type_to_string(type->ptr_to);
+  string_append(base, "[");
+  char buf[256];
+  snprintf(buf, 256, "%zu", type->size);
+  string_append(base, buf);
+  string_append(base, "]");
+  return base;
+}
+
+String*
 type_to_string(Type* type)
 {
+  if (type == NULL)
+    return string_new("NULL");
   switch (type->kind) {
     case TY_INT:
       return string_new("int");
@@ -157,6 +204,8 @@ type_to_string(Type* type)
       return string_new("void");
     case TY_LONG:
       return string_new("long");
+    case TY_LONG_LONG:
+      return string_new("long long");
     case TY_CHAR:
       return string_new("char");
     case TY_FLOAT:
@@ -167,6 +216,10 @@ type_to_string(Type* type)
       return string_new("double");
     case TY_FUNC:
       return type_func_to_string(type);
+    case TY_ARRAY:
+      return type_array_to_string(type);
+    default:
+      return string_new("unknown");
   }
-  return NULL;
+  return string_new("unknown");
 }

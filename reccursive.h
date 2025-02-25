@@ -50,6 +50,8 @@ typedef enum
   ND_BLOCK,
   ND_CALL,
   ND_FUNC,
+  ND_DECLARATION,
+  ND_CAST,
 } NodeKind;
 
 typedef enum
@@ -63,6 +65,8 @@ typedef enum
   TY_SHORT,
   TY_DOUBLE,
   TY_FUNC,
+  TY_ARRAY,
+  TY_LONG_LONG,
 } TypeKind;
 
 typedef struct Vector Vector;
@@ -146,6 +150,9 @@ tokenize(char* p);
 bool
 token_consume(Tokens* self, char* op);
 
+bool
+token_peek(Tokens* self, char* op);
+
 void
 token_expect(Tokens* self, char* op);
 
@@ -174,7 +181,7 @@ token_view(Tokens* self);
 
 struct LVar {
     String *name;
-    int offset;
+    size_t offset;
     Type *type;
 };
 
@@ -186,6 +193,7 @@ struct Node
   Vector *locals;
   Vector *argv;
   Type *type;
+  char *original_str;
 };
 
 Node*
@@ -221,6 +229,9 @@ add_lvar(Token* tok, Type* type);
 
 Program* program;
 
+void
+node_view_tree(Node* node, size_t depth);
+
 // codegen.c
 void
 gen(Node* node);
@@ -237,6 +248,7 @@ struct Type {
   size_t size;
   Vector *args;
   struct Type *ptr_to;
+  bool is_signed;
 };
 
 Type*
@@ -255,6 +267,9 @@ Type*
 type_new_long();
 
 Type*
+type_new_long_long();
+
+Type*
 type_new_char();
 
 Type*
@@ -269,8 +284,14 @@ type_new_double();
 Type*
 type_new_func(Type* ret_type);
 
+Type*
+type_new_array(Type* ptr_to, size_t size);
+
 size_t
 type_sizeof(Type* type);
+
+size_t
+type_sizeof_aligned(Type* type);
 
 bool
 type_equals(Type* lhs, Type* rhs);
@@ -281,14 +302,27 @@ type_func_equals(Type* lhs, Type* rhs);
 String*
 type_to_string(Type* type);
 
+// register.c
+const char*
+rn(size_t n, size_t size);
+
 // error.c
+void
+eprintf(char *fmt, ...);
+
+void
+error(char* fmt, ...);
+
+void
+eprintf_at(char* loc, char* fmt, ...);
+
 void
 error_at(char* loc, char* fmt, ...);
 
 void
-error_at_until(char* loc, int len, char* fmt, ...);
+eprintf_at_until(char* loc, size_t len, char* fmt, ...);
 
 void
-error(char* fmt, ...);
+error_at_until(char* loc, size_t len, char* fmt, ...);
 
 char *user_input;

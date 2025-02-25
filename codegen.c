@@ -15,14 +15,20 @@ writer(const char* format, ...)
 void
 gen_lval(Node* node)
 {
-  if (node->kind == ND_DEREF)
-    gen_expr(vector_get_node(node->children, 0));
+  const char* r0 = rn(0, 8);
+  if (node->kind == ND_DEREF) {
+    Node* child = vector_get_node(node->children, 0);
+    if (child->type->kind != TY_ARRAY)
+      gen(child);
+  }
+
   else if (node->kind == ND_LVAR) {
     LVar* lvar = vector_get_lvar(node->argv, 0);
-    writer("  sub x0, fp, #%d ; var %s\n",
+    writer("  sub %s, fp, #%lu ; %s %s addr\n",
+           r0,
            lvar->offset,
-           string_as_cstring(lvar->name));
-    writer("  str x0, [sp, #-16]!\n");
+           string_as_cstring(lvar->name),
+           type_to_string(lvar->type)->data);
   } else
     error("Not a variable on the left side of the assignment");
 }
@@ -30,22 +36,23 @@ gen_lval(Node* node)
 void
 gen_num(Node* node)
 {
-  writer("  mov x0, %d\n", node->val);
+  const char* r0 = rn(0, type_sizeof_aligned(node->type));
+  writer("  mov %s, #%d\n", r0, node->val);
 }
 
 void
 gen_lvar(Node* node)
 {
+  const char* r0 = rn(0, 8);
+  const char* r_r0 = rn(0, type_sizeof_aligned(node->type));
   gen_lval(node);
-  writer("  ldr x0, [sp], #16\n");
-  writer("  ldr x0, [x0]\n");
+  writer("  ldr %s, [%s] ; read val\n", r_r0, r0);
 }
 
 void
 gen_ref(Node* node)
 {
   gen_lval(vector_get_node(node->children, 0));
-  writer("  ldr x0, [sp], #16\n");
 }
 
 void
@@ -53,11 +60,15 @@ gen_assign(Node* node)
 {
   Node* lhs = vector_get_node(node->children, 0);
   Node* rhs = vector_get_node(node->children, 1);
+  const char* r0 = rn(0, type_sizeof_aligned(type_new_ptr(node->type)));
+  const char* r_r0 = rn(0, type_sizeof_aligned(lhs->type));
+  const char* r9 = rn(9, type_sizeof_aligned(type_new_ptr(node->type)));
   gen_lval(lhs);
+  writer("  str %s, [sp, #-16]!\n", r0);
   gen(rhs);
 
-  writer("  ldr x1, [sp], #16\n");
-  writer("  str x0, [x1]\n");
+  writer("  ldr %s, [sp], #16\n", r9);
+  writer("  str %s, [%s]\n", r_r0, r9);
 }
 
 void
@@ -65,21 +76,25 @@ gen_post_assign(Node* node)
 {
   Node* lhs = vector_get_node(node->children, 0);
   Node* rhs = vector_get_node(node->children, 1);
+  const char* r0 = rn(0, type_sizeof_aligned(type_new_ptr(node->type)));
+  const char* r_r0 = rn(0, type_sizeof_aligned(lhs->type));
+  const char* r9 = rn(9, type_sizeof_aligned(type_new_ptr(node->type)));
   gen_lvar(lhs);
-  writer("  str x0, [sp, #-16]!\n");
+  writer("  str %s, [sp, #-16]!\n", r_r0);
   gen_lval(lhs);
+  writer("  str %s, [sp, #-16]!\n", r0);
   gen(rhs);
 
-  writer("  ldr x1, [sp], #16\n");
-  writer("  str x0, [x1]\n");
-  writer("  ldr x0, [sp], #16\n");
+  writer("  ldr %s, [sp], #16\n", r9);
+  writer("  str %s, [%s]\n", r_r0, r9);
+  writer("  ldr %s, [sp], #16\n", r_r0);
 }
 
 void
 gen_return(Node* node)
 {
   gen(vector_get_node(node->children, 0));
-  writer("  add sp, sp, %d\n", 128);
+  writer("  add sp, sp, #%lu\n", 256);
   writer("  mov sp, fp\n");
   writer("  ldp fp, lr, [sp], #16\n");
   writer("  ret\n");
@@ -92,8 +107,10 @@ gen_if(Node* node)
   Node* node_cond = vector_get_node(node->children, 0);
   Node* node_then = vector_get_node(node->children, 1);
   Node* node_else = vector_get_node(node->children, 2);
+  const char* r0 = rn(0, 1);
+
   gen(node_cond);
-  writer("  cmp x0, #0\n");
+  writer("  cmp %s, #0\n", r0);
 
   if (node_else) {
     writer("  beq .Lelse%d\n", curcnt);
@@ -117,12 +134,14 @@ gen_for(Node* node)
   Node* node_cond = vector_get_node(node->children, 1);
   Node* node_inc = vector_get_node(node->children, 2);
   Node* node_body = vector_get_node(node->children, 3);
+  const char* r0 = rn(0, 1);
+
   if (node_init)
     gen(node_init);
   writer(".Lbegin%d:\n", curcnt);
   if (node_cond) {
     gen(node_cond);
-    writer("  cmp x0, #0\n");
+    writer("  cmp %s, #0\n", r0);
     writer("  beq .Lend%d\n", curcnt);
   }
   gen_stmt(node_body);
@@ -148,11 +167,16 @@ gen_func(Node* node)
   writer("_%s:\n", string_as_cstring(func->name));
   writer("  stp fp, lr, [sp, #-16]!\n");
   writer("  mov fp, sp\n");
-  writer("  sub sp, sp, %d\n", 128);
+  writer("  sub sp, sp, #%lu\n", 256);
+
+  const char* r9 = rn(9, 8);
   for (int i = 0; i < node->argv->size - 1; i++) {
     LVar* lvar = vector_get_lvar(node->argv, i);
+
     if (lvar) {
-      writer("  str x%d, [fp, #-%d]\n", i, lvar->offset);
+      const char* ri = rn(i, type_sizeof_aligned(lvar->type));
+      writer("  sub %s, fp, #%lu\n", r9, lvar->offset);
+      writer("  str %s, [%s]\n", ri, r9);
     }
   }
   for (int i = 0; i < node->children->size; i++) {
@@ -168,7 +192,9 @@ gen_call(Node* node)
     gen_expr(vector_get_node(node->children, i));
   }
   for (int i = node->children->size - 1; i >= 0; i--) {
-    writer("  ldr x%d, [sp], #16\n", i);
+    const char* ri =
+      rn(i, type_sizeof_aligned(vector_get_node(node->children, i)->type));
+    writer("  ldr %s, [sp], #16\n", ri);
   }
   writer("  bl _%s\n", string_as_cstring(func->name));
 }
@@ -179,83 +205,88 @@ gen_2op(Node* node)
   Node* lhs = vector_get_node(node->children, 0);
   Node* rhs = vector_get_node(node->children, 1);
 
+  const char* r0 = rn(0, type_sizeof_aligned(node->type));
+  const char* r_r9 = rn(9, type_sizeof_aligned(rhs->type));
+  const char* r9 = rn(9, type_sizeof_aligned(node->type));
+  const char* r10 = rn(10, type_sizeof_aligned(node->type));
+
   gen_expr(lhs);
   gen_expr(rhs);
 
-  writer("  ldr x1, [sp], #16\n");
-  writer("  ldr x0, [sp], #16\n");
+  writer("  ldr %s, [sp], #16\n", r9);
+  writer("  ldr %s, [sp], #16\n", r0);
 
   switch (node->kind) {
     case ND_ADD:
-      if (lhs->type->kind == TY_PTR) {
-        writer("  mov x2, #%d\n", type_sizeof(lhs->type->ptr_to));
-        writer("  madd x0, x1, x2, x0\n");
+      if (lhs->type->kind == TY_PTR || lhs->type->kind == TY_ARRAY) {
+        writer("  mov %s, #%d\n", r10, type_sizeof_aligned(lhs->type->ptr_to));
+        writer("  madd %s, %s, %s, %s\n", r0, r9, r10, r0);
       } else {
-        writer("  add x0, x0, x1\n");
+        writer("  add %s, %s, %s\n", r0, r0, r9);
       }
       return;
     case ND_SUB:
-      if (lhs->type->kind == TY_PTR) {
-        writer("  mov x2, #%d\n", type_sizeof(lhs->type->ptr_to));
-        writer("  msub x0, x1, x2, x0\n");
+      if (lhs->type->kind == TY_PTR || lhs->type->kind == TY_ARRAY) {
+        writer("  mov %s, #%d\n", r10, type_sizeof_aligned(lhs->type->ptr_to));
+        writer("  msub %s, %s, %s, %s\n", r0, r9, r10, r0);
       } else {
-        writer("  sub x0, x0, x1\n");
+        writer("  sub %s, %s, %s\n", r0, r0, r9);
       }
       return;
     case ND_MUL:
-      writer("  mul x0, x0, x1\n");
+      writer("  mul %s, %s, %s\n", r0, r0, r9);
       return;
     case ND_DIV:
-      writer("  sdiv x0, x0, x1\n");
+      writer("  sdiv %s, %s, %s\n", r0, r0, r9);
       return;
     case ND_MOD:
-      writer("  sdiv x2, x0, x1\n");
-      writer("  msub x0, x2, x1, x0\n");
+      writer("  sdiv %s, %s, %s\n", r10, r0, r9);
+      writer("  msub %s, %s, %s, %s\n", r0, r10, r9, r0);
       return;
     case ND_EQ:
-      writer("  cmp x0, x1\n");
-      writer("  cset x0, EQ\n");
+      writer("  cmp %s, %s\n", r0, r9);
+      writer("  cset %s, EQ\n", r0);
       return;
     case ND_NE:
-      writer("  cmp x0, x1\n");
-      writer("  cset x0, NE\n");
-      return;
-    case ND_LE:
-      writer("  cmp x0, x1\n");
-      writer("  cset x0, LE\n");
+      writer("  cmp %s, %s\n", r0, r9);
+      writer("  cset %s, NE\n", r0);
       return;
     case ND_LT:
-      writer("  cmp x0, x1\n");
-      writer("  cset x0, LT\n");
+      writer("  cmp %s, %s\n", r0, r9);
+      writer("  cset %s, LT\n", r0);
+      return;
+    case ND_LE:
+      writer("  cmp %s, %s\n", r0, r9);
+      writer("  cset %s, LE\n", r0);
       return;
     case ND_SHIFT_L:
-      writer("  lsl x0, x0, x1\n");
+      writer("  lsl %s, %s, %s\n", r0, r0, r9);
       return;
     case ND_SHIFT_R:
-      writer("  lsr x0, x0, x1\n");
+      writer("  lsr %s, %s, %s\n", r0, r0, r9);
       return;
     case ND_AND:
-      writer("  and x0, x0, x1\n");
+      writer("  and %s, %s, %s\n", r0, r0, r9);
       return;
     case ND_XOR:
-      writer("  eor x0, x0, x1\n");
+      writer("  eor %s, %s, %s\n", r0, r0, r9);
       return;
     case ND_OR:
-      writer("  orr x0, x0, x1\n");
+      writer("  orr %s, %s, %s\n", r0, r0, r9);
       return;
     case ND_LAND:
-      writer("  cmp x0, #0\n");
-      writer("  cset x0, NE\n");
-      writer("  cmp x1, #0\n");
-      writer("  cset x1, NE\n");
-      writer("  and x0, x0, x1\n");
+      writer("  cmp %s, #0\n", r0);
+      writer("  cset %s, NE\n", r0);
+      writer("  cmp %s, #0\n", r9);
+      writer("  cset %s, NE\n", r9);
+      writer("  and %s, %s, %s\n", r0, r0, r9);
       return;
     case ND_LOR:
-      writer("  cmp x0, #0\n");
-      writer("  cset x0, NE\n");
-      writer("  cmp x1, #0\n");
-      writer("  cset x1, NE\n");
-      writer("  orr x0, x0, x1\n");
+      writer("  cmp %s, #0\n", r0);
+      writer("  cset %s, NE\n", r0);
+      writer("  cmp %s, #0\n", r9);
+      writer("  cset %s, NE\n", r9);
+      writer("  orr %s, %s, %s\n", r0, r0, r9);
       return;
     default:
       error("NodeKind is not supported %d", node->kind);
@@ -266,21 +297,51 @@ void
 gen_1op(Node* node)
 {
   Node* lhs = vector_get_node(node->children, 0);
+  const char* r_r0 = rn(0, type_sizeof_aligned(lhs->type));
+  const char* r0 = rn(0, type_sizeof_aligned(node->type));
   gen(lhs);
 
   switch (node->kind) {
     case ND_LNOT:
-      writer("  cmp x0, #0\n");
-      writer("  cset x0, EQ\n");
+      writer("  cmp %s, #0\n", r0);
+      writer("  cset %s, EQ\n", r0);
       return;
     case ND_NOT:
-      writer("  mvn x0, x0\n");
+      writer("  mvn %s, %s\n", r0, r0);
       return;
     case ND_DEREF:
-      writer("  ldr x0, [x0]\n");
+      writer("  ldr %s, [%s]\n", r0, rn(0, 8));
       return;
     case ND_SIZEOF:
-      writer("  mov x0, %d\n", type_sizeof(lhs->type));
+      writer("  mov %s, %d\n", r0, type_sizeof(lhs->type));
+      return;
+    case ND_CAST:
+      switch (lhs->type->kind) {
+        case TY_INT:
+          if (node->type->kind == TY_PTR) {
+            writer("  uxtw %s, %s\n", r0, r_r0);
+          }
+          if (node->type->kind == TY_ARRAY) {
+            writer("  uxtw %s, %s\n", r0, r_r0);
+          }
+          break;
+        case TY_PTR:
+          if (node->type->kind == TY_INT) {
+            writer("  mov %s, %s\n", r0, r_r0);
+          }
+          if (node->type->kind == TY_ARRAY) {
+          }
+          break;
+        case TY_ARRAY:
+          if (node->type->kind == TY_INT) {
+            writer("  mov %s, %s\n", r0, r_r0);
+          }
+          if (node->type->kind == TY_PTR) {
+          }
+          break;
+        default:
+          error("Invalid type cast: %s", type_to_string(node->type)->data);
+      }
       return;
     default:
       error("NodeKind is not supported %d", node->kind);
@@ -348,7 +409,10 @@ gen(Node* node)
     case ND_NOT:
     case ND_DEREF:
     case ND_SIZEOF:
+    case ND_CAST:
       gen_1op(node);
+      break;
+    case ND_DECLARATION:
       break;
     default:
       error("NodeKind is not supported %d", node->kind);
@@ -361,7 +425,8 @@ gen_expr(Node* node)
   if (node == NULL)
     return;
   gen(node);
-  writer("  str x0, [sp, #-16]!\n");
+  const char* r0 = rn(0, type_sizeof_aligned(node->type));
+  writer("  str %s, [sp, #-16]!\n", r0);
 }
 
 void

@@ -96,23 +96,46 @@ token_expect_number(Tokens* tokens)
   return tok->val;
 }
 
+bool
+token_peek(Tokens* tokens, char* op)
+{
+  Token* tok = tokens_peek(tokens);
+  if (tok->kind != TK_RESERVED || strlen(op) != tok->len ||
+      memcmp(tok->str, op, tok->len)) {
+    return false;
+  }
+  return true;
+}
+
 Type*
 token_consume_type(Tokens* tokens)
 {
   Type* type;
   Token* tok = tokens_pop_front(tokens);
+  bool is_signed = true;
   if (tok->kind != TK_RESERVED && tok->kind != TK_IDENT) {
     tokens_pop_front_undo(tokens);
     return NULL;
+  }
+
+  if (tok->len == 8 && strncmp(tok->str, "unsigned", 8) == 0) {
+    is_signed = true;
+    tok = tokens_pop_front(tokens);
+  } else if (tok->len == 6 && strncmp(tok->str, "signed", 6) == 0) {
+    is_signed = false;
+    tok = tokens_pop_front(tokens);
   }
 
   if (tok->len == 3 && strncmp(tok->str, "int", 3) == 0)
     type = type_new_int();
   else if (tok->len == 4 && strncmp(tok->str, "void", 4) == 0)
     type = type_new_void();
-  else if (tok->len == 4 && strncmp(tok->str, "long", 4) == 0)
-    type = type_new_long();
-  else if (tok->len == 4 && strncmp(tok->str, "char", 4) == 0)
+  else if (tok->len == 4 && strncmp(tok->str, "long", 4) == 0) {
+    if (token_consume(tokens, "long"))
+      type = type_new_long_long();
+    else
+      type = type_new_long();
+  } else if (tok->len == 4 && strncmp(tok->str, "char", 4) == 0)
     type = type_new_char();
   else if (tok->len == 5 && strncmp(tok->str, "float", 5) == 0)
     type = type_new_float();
@@ -128,6 +151,8 @@ token_consume_type(Tokens* tokens)
   while (token_consume(tokens, "*")) {
     type = type_new_ptr(type);
   }
+
+  type->is_signed = is_signed;
 
   return type;
 }

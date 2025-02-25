@@ -27,6 +27,6 @@ $(foreach TEST,$(SEQUENCE), $(eval $(call TEST_RULE,$(shell cat testcase/testcas
 reccursive_test: $(foreach TEST,$(SEQUENCE),assert_$(shell cat testcase/testcase.json | jq -r '.[$(TEST)].name'))
 
 clean:
-	rm -f reccursive
+	rm -f reccursive *.o tmp/*
 
 .PHONY: reccursive_test clean $(foreach TEST,$(SEQUENCE),assert_$(shell cat testcase/testcase.json | jq -r '.[1].name'))
