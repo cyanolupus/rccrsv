@@ -198,7 +198,7 @@ unary(Tokens* tokens)
     return node_new(ND_REF, node, NULL, type_new_ptr(node->type));
   }
   if (token_consume(tokens, "sizeof"))
-    return node_new(ND_SIZEOF, primary(tokens), NULL, type_new_int());
+    return node_new(ND_SIZEOF, unary(tokens), NULL, type_new_int());
   return primary(tokens);
 }
 
