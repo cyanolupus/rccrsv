@@ -16,7 +16,7 @@ function testcase_build() {
     mkdir -p $testcase_build_dir
 
     cp $testcase_dir/$testcase_name.expected $testcase_build_dir/expected.txt
-    ./rccrsv $testcase_file -o $testcase_build_dir/main.s || {
+    ./rccrsv $testcase_file -o $testcase_build_dir/main.s 2>$testcase_build_dir/error.txt || {
         echo -ne "\033[31mx\033[m"
         echo -e "\033[31mFailed to compile testcase $testcase_name\033[m" >$testcase_build_dir/error.txt
         exit 1
@@ -75,7 +75,7 @@ function testcases() {
     rccrsv_build
 
     for testcase_file in $@; do
-        testcase $testcase_file
+        testcase $testcase_file &
     done
 
     wait

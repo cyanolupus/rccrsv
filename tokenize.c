@@ -150,6 +150,8 @@ token_consume_type(Tokens* tokens)
       type = type_new_isize();
     } else if (token_consume(tokens, "char")) {
       type = type_new_i8();
+    } else if (token_consume(tokens, "void")) {
+      type = type_new_void();
     } else {
       return NULL;
     }
