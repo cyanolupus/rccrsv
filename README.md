@@ -1,17 +1,17 @@
-# reccursive
+# rccrsv
 
 Self-hosted(not yet) C compiler for arm64-apple-darwin
 
 ## Build
 
 ```console
-$ make reccursive
+$ make rccrsv
 ```
 
 ## Test
 
 ```console
-$ make reccursive_test
+$ make rccrsv_test
 ```
 
 ```console

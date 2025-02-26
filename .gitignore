@@ -3,5 +3,5 @@
 *.o
 tmp*
 a.out
-reccursive
+rccrsv
 .vscode/

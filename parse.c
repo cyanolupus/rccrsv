@@ -1,4 +1,4 @@
-#include "reccursive.h"
+#include "rccrsv.h"
 
 String*
 node_kind_to_string(Node* node)
@@ -717,6 +717,8 @@ stmt(Tokens* tokens)
 Node*
 global(Tokens* tokens)
 {
+  printf("global\n");
+  token_view(tokens);
   Node* node = declaration(tokens);
   if (node->kind == ND_FUNC) {
     if (token_consume(tokens, "{")) {
@@ -741,6 +743,7 @@ global(Tokens* tokens)
 void
 add_node(Program* program, Tokens* tokens)
 {
+  printf("add_node\n");
   while (!token_at_eof(tokens)) {
     Node* node = global(tokens);
     if (node) {
