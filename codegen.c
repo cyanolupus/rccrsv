@@ -238,20 +238,10 @@ gen_2op(Node* node)
 
   switch (node->kind) {
     case ND_ADD:
-      if (lhs->type->kind == TY_PTR || lhs->type->kind == TY_ARRAY) {
-        writer("  mov %s, #%d\n", r10, type_sizeof_aligned(lhs->type->ptr_to));
-        writer("  madd %s, %s, %s, %s\n", r0, r9, r10, r0);
-      } else {
-        writer("  add %s, %s, %s\n", r0, r0, r9);
-      }
+      writer("  add %s, %s, %s\n", r0, r0, r9);
       return;
     case ND_SUB:
-      if (lhs->type->kind == TY_PTR || lhs->type->kind == TY_ARRAY) {
-        writer("  mov %s, #%d\n", r10, type_sizeof_aligned(lhs->type->ptr_to));
-        writer("  msub %s, %s, %s, %s\n", r0, r9, r10, r0);
-      } else {
-        writer("  sub %s, %s, %s\n", r0, r0, r9);
-      }
+      writer("  sub %s, %s, %s\n", r0, r0, r9);
       return;
     case ND_MUL:
       writer("  mul %s, %s, %s\n", r0, r0, r9);
@@ -319,6 +309,7 @@ gen_1op(Node* node)
   Node* lhs = vector_get_node(node->children, 0);
   const char* r_r0 = rn(0, type_sizeof_aligned(lhs->type));
   const char* r0 = rn(0, type_sizeof_aligned(node->type));
+  const char* r9 = rn(9, type_sizeof_aligned(node->type));
   gen(lhs);
 
   switch (node->kind) {
@@ -336,10 +327,51 @@ gen_1op(Node* node)
       writer("  mov %s, %d\n", r0, type_sizeof(lhs->type));
       return;
     case ND_CAST:
+      if (type_equals(lhs->type, node->type)) {
+        eprintf("Reached unreachable code\n");
+        return;
+      }
+      switch (lhs->type->kind) {
+        case TY_PTR:
+        case TY_ARRAY:
+          switch (node->type->kind) {
+            case TY_PTR:
+            case TY_ARRAY:
+              writer("  uxtw %s, %s\n", r0, r_r0);
+              return;
+            default:
+              break;
+          }
+          break;
+        case TY_I8:
+        case TY_I16:
+        case TY_ISIZE:
+        case TY_I32:
+        case TY_I64:
+        case TY_U8:
+        case TY_U16:
+        case TY_USIZE:
+        case TY_U32:
+        case TY_U64:
+          switch (node->type->kind) {
+            case TY_PTR:
+            case TY_ARRAY:
+              writer("  uxtw %s, %s\n", r0, r_r0);
+              writer("  mov %s, #%d\n", r9, type_sizeof(node->type->ptr_to));
+              writer("  mul %s, %s, %s\n", r0, r0, r9);
+              return;
+            default:
+              break;
+          }
+          break;
+        default:
+          break;
+      }
       fprintf(stderr,
               "Invalid type cast %s -> %s\n",
               type_to_string(lhs->type)->data,
               type_to_string(node->type)->data);
+      exit(1);
       return;
     default:
       error("NodeKind is not supported %d", node->kind);

@@ -808,6 +808,11 @@ add_lvar(Token* tok, Type* type)
 {
   LVar* lvar = find_lvar(tok);
   if (lvar == NULL) {
+    if (program->latest_offset % type_sizeof_aligned(type) != 0) {
+      program->latest_offset +=
+        type_sizeof_aligned(type) -
+        program->latest_offset % type_sizeof_aligned(type);
+    }
     size_t head = program->latest_offset;
     if (type->kind == TY_ARRAY) {
       head += type_sizeof_aligned(type->ptr_to);
