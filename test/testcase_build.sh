@@ -15,13 +15,18 @@ function testcase_build() {
 
     mkdir -p $testcase_build_dir
 
-    cp $testcase_dir/$testcase_name.expected $testcase_build_dir/expected.txt
-    ./rccrsv $testcase_file -o $testcase_build_dir/main.s 2>$testcase_build_dir/error.txt || {
+    ln -sf ../../../test/testcases/$testcase_name.expected $testcase_build_dir/expected.txt
+    ln -sf ../../../test/testcases/$testcase_name.c $testcase_build_dir/main.c
+    ./rccrsv $testcase_build_dir/main.c -o $testcase_build_dir/main.s 2>$testcase_build_dir/error.txt || {
         echo -ne "\033[31mx\033[m"
-        echo -e "\033[31mFailed to compile testcase $testcase_name\033[m" >$testcase_build_dir/error.txt
+        echo -e "\033[31mFailed to compile testcase $testcase_name\033[m" >>$testcase_build_dir/error.txt
         exit 1
     }
-    cc -c -o $testcase_build_dir/main.o $testcase_build_dir/main.s
+    cc -c -o $testcase_build_dir/main.o $testcase_build_dir/main.s 2>>$testcase_build_dir/error.txt || {
+        echo -ne "\033[31mx\033[m"
+        echo -e "\033[31mFailed to assemble testcase $testcase_name\033[m" >>$testcase_build_dir/error.txt
+        exit 1
+    }
     cc -c -O0 -o $testcase_build_dir/utils.o test/utils.c
     cc -o $testcase_build_dir/main $testcase_build_dir/main.o $testcase_build_dir/utils.o
 }
