@@ -12,7 +12,7 @@ type_new(TypeKind kind, Type* ptr_to)
 Type*
 type_new_int()
 {
-  return type_new(TY_INT, NULL);
+  return type_new(TY_ISIZE, NULL);
 }
 
 Type*
@@ -28,33 +28,69 @@ type_new_void()
 }
 
 Type*
-type_new_long()
+type_new_i8()
 {
-  return type_new(TY_LONG, NULL);
+  return type_new(TY_I8, NULL);
 }
 
 Type*
-type_new_long_long()
+type_new_i16()
 {
-  return type_new(TY_LONG_LONG, NULL);
+  return type_new(TY_I16, NULL);
 }
 
 Type*
-type_new_char()
+type_new_isize()
 {
-  return type_new(TY_CHAR, NULL);
+  return type_new(TY_ISIZE, NULL);
+}
+
+Type*
+type_new_i32()
+{
+  return type_new(TY_I32, NULL);
+}
+
+Type*
+type_new_i64()
+{
+  return type_new(TY_I64, NULL);
+}
+
+Type*
+type_new_u8()
+{
+  return type_new(TY_U8, NULL);
+}
+
+Type*
+type_new_u16()
+{
+  return type_new(TY_U16, NULL);
+}
+
+Type*
+type_new_usize()
+{
+  return type_new(TY_USIZE, NULL);
+}
+
+Type*
+type_new_u32()
+{
+  return type_new(TY_U32, NULL);
+}
+
+Type*
+type_new_u64()
+{
+  return type_new(TY_U64, NULL);
 }
 
 Type*
 type_new_float()
 {
   return type_new(TY_FLOAT, NULL);
-}
-
-Type*
-type_new_short()
-{
-  return type_new(TY_SHORT, NULL);
 }
 
 Type*
@@ -83,28 +119,28 @@ type_new_array(Type* ptr_to, size_t size)
 size_t
 type_sizeof(Type* type)
 {
-  if (type->kind == TY_INT)
-    return 4;
-  else if (type->kind == TY_PTR)
+  if (type->kind == TY_PTR)
     return 8;
+  else if (type->kind == TY_ARRAY)
+    return type->size * type_sizeof(type->ptr_to);
   else if (type->kind == TY_VOID)
     return 0;
-  else if (type->kind == TY_LONG)
-    return 8;
-  else if (type->kind == TY_LONG_LONG)
-    return 16;
-  else if (type->kind == TY_CHAR)
+  else if (type->kind == TY_I8 || type->kind == TY_U8)
     return 1;
+  else if (type->kind == TY_I16 || type->kind == TY_U16)
+    return 2;
+  else if (type->kind == TY_ISIZE || type->kind == TY_USIZE)
+    return 4;
+  else if (type->kind == TY_I32 || type->kind == TY_U32)
+    return 4;
+  else if (type->kind == TY_I64 || type->kind == TY_U64)
+    return 8;
   else if (type->kind == TY_FLOAT)
     return 4;
-  else if (type->kind == TY_SHORT)
-    return 2;
   else if (type->kind == TY_DOUBLE)
     return 8;
   else if (type->kind == TY_FUNC)
     return 0;
-  else if (type->kind == TY_ARRAY)
-    return type->size * type_sizeof(type->ptr_to);
   error("Unknown type");
   return 0;
 }
@@ -196,28 +232,38 @@ type_to_string(Type* type)
   if (type == NULL)
     return string_new("NULL");
   switch (type->kind) {
-    case TY_INT:
-      return string_new("int");
     case TY_PTR:
       return type_ptr_to_string(type);
     case TY_VOID:
       return string_new("void");
-    case TY_LONG:
-      return string_new("long");
-    case TY_LONG_LONG:
-      return string_new("long long");
-    case TY_CHAR:
-      return string_new("char");
-    case TY_FLOAT:
-      return string_new("float");
-    case TY_SHORT:
-      return string_new("short");
-    case TY_DOUBLE:
-      return string_new("double");
     case TY_FUNC:
       return type_func_to_string(type);
     case TY_ARRAY:
       return type_array_to_string(type);
+    case TY_I8:
+      return string_new("signed char");
+    case TY_I16:
+      return string_new("signed short int");
+    case TY_ISIZE:
+      return string_new("signed int");
+    case TY_I32:
+      return string_new("signed long int");
+    case TY_I64:
+      return string_new("signed long long int");
+    case TY_U8:
+      return string_new("unsigned char");
+    case TY_U16:
+      return string_new("unsigned short int");
+    case TY_USIZE:
+      return string_new("unsigned int");
+    case TY_U32:
+      return string_new("unsigned long int");
+    case TY_U64:
+      return string_new("unsigned long long int");
+    case TY_FLOAT:
+      return string_new("float");
+    case TY_DOUBLE:
+      return string_new("double");
     default:
       return string_new("unknown");
   }

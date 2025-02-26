@@ -5,11 +5,19 @@ int jmpcnt = 0;
 int
 writer(const char* format, ...)
 {
-  va_list args;
-  va_start(args, format);
-  int ret = vfprintf(stdout, format, args);
-  va_end(args);
-  return ret;
+  if (!output_fp) {
+    va_list args;
+    va_start(args, format);
+    int ret = vfprintf(stdout, format, args);
+    va_end(args);
+    return ret;
+  } else {
+    va_list args;
+    va_start(args, format);
+    int ret = vfprintf(output_fp, format, args);
+    va_end(args);
+    return ret;
+  }
 }
 
 void
@@ -20,15 +28,27 @@ gen_lval(Node* node)
     Node* child = vector_get_node(node->children, 0);
     if (child->type->kind != TY_ARRAY)
       gen(child);
-  }
-
-  else if (node->kind == ND_LVAR) {
+    else {
+      gen_lval(child);
+    }
+  } else if (node->kind == ND_LVAR) {
     LVar* lvar = vector_get_lvar(node->argv, 0);
     writer("  sub %s, fp, #%lu ; %s %s addr\n",
            r0,
            lvar->offset,
            string_as_cstring(lvar->name),
            type_to_string(lvar->type)->data);
+  } else
+    error("Not a variable on the left side of the assignment");
+}
+
+void
+gen_addr(Node* node)
+{
+  if (node->kind == ND_DEREF) {
+    gen(vector_get_node(node->children, 0));
+  } else if (node->kind == ND_LVAR) {
+    gen_lval(node);
   } else
     error("Not a variable on the left side of the assignment");
 }
@@ -316,32 +336,10 @@ gen_1op(Node* node)
       writer("  mov %s, %d\n", r0, type_sizeof(lhs->type));
       return;
     case ND_CAST:
-      switch (lhs->type->kind) {
-        case TY_INT:
-          if (node->type->kind == TY_PTR) {
-            writer("  uxtw %s, %s\n", r0, r_r0);
-          }
-          if (node->type->kind == TY_ARRAY) {
-            writer("  uxtw %s, %s\n", r0, r_r0);
-          }
-          break;
-        case TY_PTR:
-          if (node->type->kind == TY_INT) {
-            writer("  mov %s, %s\n", r0, r_r0);
-          }
-          if (node->type->kind == TY_ARRAY) {
-          }
-          break;
-        case TY_ARRAY:
-          if (node->type->kind == TY_INT) {
-            writer("  mov %s, %s\n", r0, r_r0);
-          }
-          if (node->type->kind == TY_PTR) {
-          }
-          break;
-        default:
-          error("Invalid type cast: %s", type_to_string(node->type)->data);
-      }
+      fprintf(stderr,
+              "Invalid type cast %s -> %s\n",
+              type_to_string(lhs->type)->data,
+              type_to_string(node->type)->data);
       return;
     default:
       error("NodeKind is not supported %d", node->kind);

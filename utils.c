@@ -143,43 +143,47 @@ string_new(const char* initial)
 String*
 string_new_with_len(char* s, size_t len)
 {
-  String* str = string_new(NULL);
+  String* str = (String*)malloc(sizeof(String));
   if (!str)
     return NULL;
 
-  if (str->capacity < len + 1) {
-    size_t new_capacity = (len + 1) * 2;
-    char* new_data = (char*)realloc(str->data, new_capacity);
-    if (!new_data) {
-      free(str->data);
-      free(str);
-      return NULL;
-    }
-    str->data = new_data;
-    str->capacity = new_capacity;
+  size_t capacity = (len + 1) * 2;
+  str->data = (char*)malloc(capacity);
+  if (!str->data) {
+    free(str);
+    return NULL;
   }
 
   memcpy(str->data, s, len);
   str->data[len] = '\0';
   str->size = len;
+  str->capacity = capacity;
   return str;
 }
 
 const char*
 string_as_cstring(String* str)
 {
-  return str->data;
+  return str ? str->data : "";
 }
 
 void
 string_append(String* str, const char* s)
 {
+  if (!s)
+    return;
+  if (!str)
+    return;
+
   size_t suffix_len = strlen(s);
   size_t new_size = str->size + suffix_len;
 
   if (new_size + 1 > str->capacity) {
     size_t new_capacity = (new_size + 1) * 2;
-    char* new_data = calloc(new_capacity, sizeof(char));
+    char* new_data = (char*)malloc(new_capacity);
+    if (!new_data) {
+      return;
+    }
     memcpy(new_data, str->data, str->size);
     free(str->data);
     str->data = new_data;

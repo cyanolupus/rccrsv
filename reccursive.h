@@ -6,6 +6,9 @@
 #include <string.h>
 
 int jmpcnt;
+char* input_path;
+char* output_path;
+FILE* output_fp;
 
 // typedef
 typedef enum
@@ -56,17 +59,22 @@ typedef enum
 
 typedef enum
 {
-  TY_INT,
   TY_PTR,
   TY_VOID,
-  TY_LONG,
-  TY_CHAR,
-  TY_FLOAT,
-  TY_SHORT,
-  TY_DOUBLE,
   TY_FUNC,
   TY_ARRAY,
-  TY_LONG_LONG,
+  TY_I8,
+  TY_I16,
+  TY_ISIZE,
+  TY_I32,
+  TY_I64,
+  TY_U8,
+  TY_U16,
+  TY_USIZE,
+  TY_U32,
+  TY_U64,
+  TY_DOUBLE,
+  TY_FLOAT,
 } TypeKind;
 
 typedef struct Vector Vector;
@@ -248,14 +256,10 @@ struct Type {
   size_t size;
   Vector *args;
   struct Type *ptr_to;
-  bool is_signed;
 };
 
 Type*
 type_new(TypeKind kind, Type* ptr_to);
-
-Type*
-type_new_int();
 
 Type*
 type_new_ptr(Type* ptr_to);
@@ -264,19 +268,37 @@ Type*
 type_new_void();
 
 Type*
-type_new_long();
+type_new_i8();
 
 Type*
-type_new_long_long();
+type_new_i16();
 
 Type*
-type_new_char();
+type_new_isize();
+
+Type*
+type_new_i32();
+
+Type*
+type_new_i64();
+
+Type*
+type_new_u8();
+
+Type*
+type_new_u16();
+
+Type*
+type_new_usize();
+
+Type*
+type_new_u32();
+
+Type*
+type_new_u64();
 
 Type*
 type_new_float();
-
-Type*
-type_new_short();
 
 Type*
 type_new_double();
