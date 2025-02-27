@@ -36,19 +36,21 @@ gen_lval(Node* node)
     writer("  sub %s, fp, #%lu ; %s %s addr\n",
            r0,
            lvar->offset,
-           string_as_cstring(lvar->name),
+           lvar->name->data,
            type_to_string(lvar->type)->data);
   } else if (node->kind == ND_GVAR) {
     writer("  adrp %s, _%s@PAGE\n", /* in arm64-apple-darwin @PAGE is needed */
            r0,
-           string_as_cstring(vector_get_lvar(node->argv, 0)->name));
+           vector_get_lvar(node->argv, 0)->name->data);
     writer("  add %s, %s, _%s@PAGEOFF\n", /* in arm64-apple-darwin @PAGEOFF is
                                             used instead of :lo12: */
            r0,
            r0,
-           string_as_cstring(vector_get_lvar(node->argv, 0)->name));
-  } else
-    error("Not a variable on the left side of the assignment");
+           vector_get_lvar(node->argv, 0)->name->data);
+  } else {
+    fprintf(stderr, "Not a variable on the left side of the assignment\n");
+    exit(1);
+  }
 }
 
 void
@@ -58,8 +60,10 @@ gen_addr(Node* node)
     gen(vector_get_node(node->children, 0));
   } else if (node->kind == ND_LVAR) {
     gen_lval(node);
-  } else
-    error("Not a variable on the left side of the assignment");
+  } else {
+    fprintf(stderr, "Not a variable on the left side of the assignment\n");
+    exit(1);
+  }
 }
 
 void
@@ -117,7 +121,9 @@ gen_assign(Node* node)
       writer("  str %s, [%s]\n", r_r0, r9);
       break;
     default:
-      error("Not supported type %s", type_to_string(lhs->type)->data);
+      fprintf(
+        stderr, "Not supported type %s\n", type_to_string(lhs->type)->data);
+      exit(1);
   }
 }
 
@@ -156,7 +162,9 @@ gen_post_assign(Node* node)
       writer("  str %s, [%s]\n", r_r0, r9);
       break;
     default:
-      error("Not supported type %s", type_to_string(lhs->type)->data);
+      fprintf(
+        stderr, "Not supported type %s\n", type_to_string(lhs->type)->data);
+      exit(1);
   }
   writer("  ldr %s, [sp], #16\n", r_r0);
 }
@@ -234,8 +242,8 @@ void
 gen_func(Node* node)
 {
   LVar* func = vector_get_lvar(node->argv, node->argv->size - 1);
-  writer(".global _%s\n", string_as_cstring(func->name));
-  writer("_%s:\n", string_as_cstring(func->name));
+  writer(".global _%s\n", func->name->data);
+  writer("_%s:\n", func->name->data);
   writer("  stp fp, lr, [sp, #-16]!\n");
   writer("  mov fp, sp\n");
   writer("  sub sp, sp, #%lu\n", 256);
@@ -267,7 +275,7 @@ gen_call(Node* node)
       rn(i, type_sizeof_aligned(vector_get_node(node->children, i)->type));
     writer("  ldr %s, [sp], #16\n", ri);
   }
-  writer("  bl _%s\n", string_as_cstring(func->name));
+  writer("  bl _%s\n", func->name->data);
 }
 
 void
@@ -350,7 +358,8 @@ gen_2op(Node* node)
       writer("  orr %s, %s, %s\n", r0, r0, r9);
       return;
     default:
-      error("NodeKind is not supported %d", node->kind);
+      fprintf(stderr, "NodeKind is not supported %d\n", node->kind);
+      exit(1);
   }
 }
 
@@ -379,7 +388,8 @@ gen_1op(Node* node)
       return;
     case ND_AUTOCAST:
       if (type_equals(lhs->type, node->type)) {
-        eprintf("Reached unreachable code\n");
+        fprintf(stderr, "Reached unreachable code\n");
+        exit(1);
         return;
       }
       switch (lhs->type->kind) {
@@ -533,7 +543,7 @@ gen_1op(Node* node)
       exit(1);
       return;
     default:
-      error("NodeKind is not supported %d", node->kind);
+      fprintf(stderr, "NodeKind is not supported %d\n", node->kind);
   }
 }
 
@@ -605,7 +615,7 @@ gen(Node* node)
       break;
     case ND_LDECLARE:
       writer("  ; declare local variable %s\n",
-             string_as_cstring(vector_get_lvar(node->argv, 0)->name));
+             vector_get_lvar(node->argv, 0)->name->data);
       if (node->children) {
         assign = vector_get_node(node->children, 0);
         if (assign && assign->kind == ND_ASSIGN) {
@@ -616,7 +626,7 @@ gen(Node* node)
       break;
     case ND_GDECLARE:
       writer("; declare global variable %s\n",
-             string_as_cstring(vector_get_lvar(node->argv, 0)->name));
+             vector_get_lvar(node->argv, 0)->name->data);
       long long val = 0;
       if (node->children) {
         assign = vector_get_node(node->children, 0);
@@ -625,15 +635,16 @@ gen(Node* node)
         }
       }
       if (!node->type) {
-        error("Type is not set for global variable %s",
-              string_as_cstring(vector_get_lvar(node->argv, 0)->name));
+        fprintf(stderr,
+                "Type is not set for global variable %s\n",
+                vector_get_lvar(node->argv, 0)->name->data);
+        exit(1);
       }
       if (node->type->kind == TY_FUNC) {
         return;
       }
-      writer(".global _%s\n",
-             string_as_cstring(vector_get_lvar(node->argv, 0)->name));
-      writer("_%s:\n", string_as_cstring(vector_get_lvar(node->argv, 0)->name));
+      writer(".global _%s\n", vector_get_lvar(node->argv, 0)->name->data);
+      writer("_%s:\n", vector_get_lvar(node->argv, 0)->name->data);
       if (node->type->kind == TY_ARRAY) {
         writer("  .zero %lu\n", type_sizeof_aligned(node->type));
       }
@@ -656,8 +667,13 @@ gen(Node* node)
         writer("  .xword %lld\n", *(signed long long*)&val);
       }
       break;
+    case ND_STRING:
+      writer("  adrp %s, .LC%d@PAGE\n", rn(0, 8), node->val);
+      writer("  add %s, %s, .LC%d@PAGEOFF\n", rn(0, 8), rn(0, 8), node->val);
+      break;
     default:
-      error("NodeKind is not supported %d", node->kind);
+      fprintf(stderr, "NodeKind is not supported %d\n", node->kind);
+      exit(1);
   }
 }
 
@@ -692,6 +708,10 @@ gen_code(Program* program)
   }
   writer(".section __TEXT,__text\n");
   writer(".align 2\n");
+  for (int i = 0; i < program->strs->size; i++) {
+    writer(".LC%d:\n", i);
+    writer("  .asciz \"%s\"\n", vector_get_string(program->strs, i)->data);
+  }
   for (int i = 0; i < program->code->size; i++) {
     gen_stmt(vector_get_node(program->code, i));
   }

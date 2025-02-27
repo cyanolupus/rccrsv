@@ -36,7 +36,8 @@ main(int argc, char** argv)
 
   FILE* fp = fopen(input_path, "r");
   if (!fp) {
-    error("cannot open %s", argv[1]);
+    fprintf(stderr, "cannot open %s\n", argv[1]);
+    exit(1);
   }
   fseek(fp, 0, SEEK_END);
   size_t size = ftell(fp);
@@ -50,12 +51,14 @@ main(int argc, char** argv)
   } else {
     output_fp = fopen(output_path, "w");
     if (!output_fp) {
-      error("cannot open %s", output_path);
+      fprintf(stderr, "cannot open %s\n", output_path);
+      exit(1);
     }
     fclose(output_fp);
     output_fp = fopen(output_path, "a");
     if (!output_fp) {
-      error("cannot open %s", output_path);
+      fprintf(stderr, "cannot open %s\n", output_path);
+      exit(1);
     }
   }
 

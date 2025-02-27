@@ -103,7 +103,7 @@ Type*
 type_new_func(Type* ret_type)
 {
   Type* type = type_new(TY_FUNC, NULL);
-  type->args = vector_new();
+  type->args = vector_new(8);
   type->ptr_to = ret_type;
   return type;
 }
@@ -141,8 +141,8 @@ type_sizeof(Type* type)
     return 8;
   else if (type->kind == TY_FUNC)
     return 0;
-  error("Unknown type");
-  return 0;
+  fprintf(stderr, "Unknown type\n");
+  exit(1);
 }
 
 size_t
@@ -203,14 +203,14 @@ type_func_to_string(Type* type)
   for (int i = 0; i < type->args->size; i++) {
     Type* arg = vector_get(type->args, i);
     String* arg_str = type_to_string(arg);
-    string_append(base, string_as_cstring(arg_str));
+    base = string_append(base, arg_str->data);
     if (i != type->args->size - 1)
-      string_append(base, ", ");
+      base = string_append(base, ", ");
     free(arg_str->data);
     free(arg_str);
   }
 
-  string_append(base, ")");
+  base = string_append(base, ")");
   return base;
 }
 
@@ -218,11 +218,11 @@ String*
 type_array_to_string(Type* type)
 {
   String* base = type_to_string(type->ptr_to);
-  string_append(base, "[");
+  base = string_append(base, "[");
   char buf[256];
   snprintf(buf, 256, "%zu", type->size);
-  string_append(base, buf);
-  string_append(base, "]");
+  base = string_append(base, buf);
+  base = string_append(base, "]");
   return base;
 }
 

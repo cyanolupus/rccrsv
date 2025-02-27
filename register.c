@@ -135,6 +135,6 @@ rn(size_t n, size_t size)
     }
   }
 
-  error("Register is not supported %d", n);
-  return NULL;
+  fprintf(stderr, "Register is not supported %zu\n", n);
+  exit(1);
 }

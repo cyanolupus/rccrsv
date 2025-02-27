@@ -17,6 +17,7 @@ typedef enum
   TK_IDENT,
   TK_NUM,
   TK_EOF,
+  TK_STR,
 } TokenKind;
 
 typedef enum
@@ -57,6 +58,7 @@ typedef enum
   ND_LDECLARE,
   ND_GDECLARE,
   ND_AUTOCAST,
+  ND_STRING,
 } NodeKind;
 
 typedef enum
@@ -105,7 +107,7 @@ struct Vector
 };
 
 Vector*
-vector_new();
+vector_new(size_t capacity);
 void
 vector_push(Vector* vec, void* elem);
 void*
@@ -120,6 +122,8 @@ LVar*
 vector_get_lvar(Vector* vec, size_t index);
 Type*
 vector_get_type(Vector* vec, size_t index);
+String*
+vector_get_string(Vector* vec, size_t index);
 
 struct HashNode
 {
@@ -151,20 +155,25 @@ struct String
 
 String*
 string_new(const char* initial);
+
 String*
-string_new_with_len(char* s, size_t len);
-void
+string_new_with_len(const char* s, size_t len);
+
+String*
 string_append(String* str, const char* s);
-const char*
-string_as_cstring(String* str);
+
+bool
+string_equals(String* lhs, String* rhs);
+
+String*
+string_clone(String* str);
 
 // tokenize.c
 struct Token
 {
   TokenKind kind;
-  int val;
-  char* str;
-  int len;
+  long long val;
+  String* str;
 };
 
 struct Tokens
@@ -177,18 +186,18 @@ Tokens*
 tokenize(char* p);
 
 bool
-token_consume(Tokens* self, char* op);
+token_consume(Tokens* self, String* op);
 
 bool
-token_peek(Tokens* self, char* op);
+token_peek(Tokens* self, String* op);
 
 void
-token_expect(Tokens* self, char* op);
+token_expect(Tokens* self, String* op);
 
-Token*
+String*
 token_consume_ident(Tokens* self);
 
-Token*
+String*
 token_expect_ident(Tokens* self);
 
 int
@@ -199,6 +208,9 @@ token_consume_type(Tokens* self);
 
 Type*
 token_expect_type(Tokens* self);
+
+String*
+token_consume_str(Tokens* self);
 
 bool
 token_at_eof(Tokens* self);
@@ -231,43 +243,45 @@ node_new_lvar(LVar* lvar);
 Node*
 expr(Tokens* self);
 
-struct Program
-{
-  Vector* code;
-  Vector* vars;
-  HashMap* locals;
-  HashMap* globals;
-  int latest_offset;
-};
-
-Program*
-program_new();
-
 void
 add_node(Program* program, Tokens* tokens);
 
 Node*
 global(Tokens* tokens);
 
+void
+node_view_tree(Node* node, size_t depth);
+
+// var.c
 LVar*
-lvar_new(char* name, int len, int offset, Type* type);
+lvar_new(String* name, int offset, Type* type);
 
 LVar*
-expect_var(Token* tok);
+expect_var(String* name);
 
 LVar*
-expect_lvar(Token* tok);
+expect_lvar(String* name);
 
 LVar*
-add_lvar(Token* tok, Type* type);
+add_lvar(String* name, Type* type);
 
 LVar*
-add_gvar(Token* tok, Type* type);
+add_gvar(String* name, Type* type);
+
+struct Program
+{
+  Vector* code;
+  Vector* vars;
+  Vector* strs;
+  HashMap* locals;
+  HashMap* globals;
+  int latest_offset;
+};
 
 Program* program;
 
-void
-node_view_tree(Node* node, size_t depth);
+Program*
+program_new();
 
 // codegen.c
 void
@@ -362,22 +376,22 @@ const char*
 rn(size_t n, size_t size);
 
 // error.c
-void
-eprintf(char* fmt, ...);
+// void
+// eprintf(const char* fmt, ...);
 
-void
-error(char* fmt, ...);
+// void
+// error(stderr, const char* fmt, ...);
 
-void
-eprintf_at(char* loc, char* fmt, ...);
+// void
+// eprintf_at(const char* loc, const char* fmt, ...);
 
-void
-error_at(char* loc, char* fmt, ...);
+// void
+// error_at(const char* loc, const char* fmt, ...);
 
-void
-eprintf_at_until(char* loc, size_t len, char* fmt, ...);
+// void
+// eprintf_at_until(const char* loc, size_t len, const char* fmt, ...);
 
-void
-error_at_until(char* loc, size_t len, char* fmt, ...);
+// void
+// error_at_until(const char* loc, size_t len, const char* fmt, ...);
 
 char* user_input;

@@ -5,8 +5,7 @@ token_new(TokenKind kind, char* str, int len)
 {
   Token* tok = calloc(1, sizeof(Token));
   tok->kind = kind;
-  tok->str = str;
-  tok->len = len;
+  tok->str = string_new_with_len(str, len);
   return tok;
 }
 
@@ -14,7 +13,7 @@ Tokens*
 tokens_new()
 {
   Tokens* tokens = calloc(1, sizeof(Tokens));
-  tokens->tokens = vector_new();
+  tokens->tokens = vector_new(512);
   tokens->pos = 0;
   return tokens;
 }
@@ -31,80 +30,69 @@ tokens_pop_front(Tokens* tokens)
   return vector_get_token(tokens->tokens, tokens->pos++);
 }
 
-void
-tokens_pop_front_undo(Tokens* tokens)
-{
-  tokens->pos--;
-}
-
 bool
-token_consume(Tokens* tokens, char* op)
+token_peek(Tokens* tokens, String* op)
 {
-  Token* tok = tokens_pop_front(tokens);
-  if (tok->kind != TK_RESERVED || strlen(op) != tok->len ||
-      memcmp(tok->str, op, tok->len)) {
-    tokens_pop_front_undo(tokens);
+  Token* tok = tokens_peek(tokens);
+  if (tok->kind != TK_RESERVED || !string_equals(tok->str, op)) {
     return false;
   }
   return true;
 }
 
+bool
+token_consume(Tokens* tokens, String* op)
+{
+  Token* tok = tokens_peek(tokens);
+  if (tok->kind != TK_RESERVED || !string_equals(tok->str, op)) {
+    return false;
+  }
+  tokens->pos++;
+  return true;
+}
+
 void
-token_expect(Tokens* tokens, char* op)
+token_expect(Tokens* tokens, String* op)
 {
   Token* tok = tokens_pop_front(tokens);
-  if (tok->kind != TK_RESERVED)
-    error_at(tok->str, "Token is not RESERVED");
-  else if (strlen(op) != tok->len)
-    error_at(tok->str, "Token length is not %d, but %d", strlen(op), tok->len);
-  else if (memcmp(tok->str, op, tok->len)) {
-    char* token_str = calloc(tok->len + 1, sizeof(char));
-    strncpy(token_str, tok->str, tok->len);
-    token_str[tok->len] = '\0';
-    error_at(tok->str, "Token is not '%s', but '%s'", op, token_str);
+  if (token_consume(tokens, op)) {
+    fprintf(stderr, "Token is not '%s'\n", op->data);
+    exit(1);
   }
 }
 
-Token*
+String*
 token_consume_ident(Tokens* tokens)
 {
-  Token* tok = tokens_pop_front(tokens);
+  Token* tok = tokens_peek(tokens);
   if (tok->kind != TK_IDENT) {
-    tokens_pop_front_undo(tokens);
     return NULL;
   }
-  return tok;
+  tokens->pos++;
+  return string_clone(tok->str);
 }
 
-Token*
+String*
 token_expect_ident(Tokens* tokens)
 {
   Token* tok = tokens_pop_front(tokens);
   if (tok->kind != TK_IDENT) {
-    error_at(tok->str, "Token is not identifier");
+    fprintf(stderr, "Token is not identifier\n");
+    exit(1);
   }
-  return tok;
+  return string_clone(tok->str);
 }
 
 int
 token_expect_number(Tokens* tokens)
 {
   Token* tok = tokens_pop_front(tokens);
-  if (tok->kind != TK_NUM)
-    error_at(tok->str, "Token is not number");
+  if (tok->kind != TK_NUM) {
+    fprintf(stderr, "Token is not number\n");
+    exit(1);
+  }
 
   return tok->val;
-}
-
-bool
-token_peek(Tokens* tokens, char* op)
-{
-  Token* tok = tokens_peek(tokens);
-  if (tok->kind != TK_RESERVED || strlen(op) != tok->len ||
-      memcmp(tok->str, op, tok->len)) {
-    return false;
-  }
-  return true;
 }
 
 Type*
@@ -112,52 +100,52 @@ token_consume_type(Tokens* tokens)
 {
   Type* type;
 
-  if (token_consume(tokens, "unsigned")) {
-    if (token_consume(tokens, "long")) {
-      if (token_consume(tokens, "long")) {
+  if (token_consume(tokens, string_new("unsigned"))) {
+    if (token_consume(tokens, string_new("long"))) {
+      if (token_consume(tokens, string_new("long"))) {
         type = type_new_u64();
       }
-      token_consume(tokens, "int");
+      token_consume(tokens, string_new("int"));
       type = type_new_u32();
-    } else if (token_consume(tokens, "short")) {
-      token_consume(tokens, "int");
+    } else if (token_consume(tokens, string_new("short"))) {
+      token_consume(tokens, string_new("int"));
       type = type_new_u16();
-    } else if (token_consume(tokens, "int")) {
+    } else if (token_consume(tokens, string_new("int"))) {
       type = type_new_usize();
-    } else if (token_consume(tokens, "char")) {
+    } else if (token_consume(tokens, string_new("char"))) {
       type = type_new_u8();
     } else {
       return NULL;
     }
-  } else if (token_consume(tokens, "float")) {
+  } else if (token_consume(tokens, string_new("float"))) {
     type = type_new_float();
-  } else if (token_consume(tokens, "double")) {
+  } else if (token_consume(tokens, string_new("double"))) {
     type = type_new_double();
   } else {
-    token_consume(tokens, "signed");
-    if (token_consume(tokens, "long")) {
-      if (token_consume(tokens, "long")) {
-        token_consume(tokens, "int");
+    token_consume(tokens, string_new("signed"));
+    if (token_consume(tokens, string_new("long"))) {
+      if (token_consume(tokens, string_new("long"))) {
+        token_consume(tokens, string_new("int"));
         type = type_new_i64();
       } else {
-        token_consume(tokens, "int");
+        token_consume(tokens, string_new("int"));
         type = type_new_i32();
       }
-    } else if (token_consume(tokens, "short")) {
-      token_consume(tokens, "int");
+    } else if (token_consume(tokens, string_new("short"))) {
+      token_consume(tokens, string_new("int"));
       type = type_new_i16();
-    } else if (token_consume(tokens, "int")) {
+    } else if (token_consume(tokens, string_new("int"))) {
       type = type_new_isize();
-    } else if (token_consume(tokens, "char")) {
+    } else if (token_consume(tokens, string_new("char"))) {
       type = type_new_i8();
-    } else if (token_consume(tokens, "void")) {
+    } else if (token_consume(tokens, string_new("void"))) {
       type = type_new_void();
     } else {
       return NULL;
     }
   }
 
-  while (token_consume(tokens, "*")) {
+  while (token_consume(tokens, string_new("*"))) {
     type = type_new_ptr(type);
   }
 
@@ -167,10 +155,23 @@ token_consume_type(Tokens* tokens)
 Type*
 token_expect_type(Tokens* tokens)
 {
+  Token* tok = tokens_peek(tokens);
   Type* type = token_consume_type(tokens);
-  if (!type)
-    error_at(tokens_peek(tokens)->str, "Token is not data type");
+  if (!type) {
+    fprintf(stderr, "Token is not data type\n");
+    exit(1);
+  }
   return type;
+}
+
+String*
+token_consume_str(Tokens* tokens)
+{
+  Token* tok = tokens_peek(tokens);
+  if (tok->kind != TK_STR) {
+    return NULL;
+  }
+  return string_clone(tok->str);
 }
 
 bool
@@ -189,11 +190,11 @@ token_view(Tokens* tokens)
     else
       fprintf(stderr, "  ");
     Token* tok = vector_get_token(tokens->tokens, i);
-    char* token_str = calloc(tok->len + 1, sizeof(char));
-    strncpy(token_str, tok->str, tok->len);
-    token_str[tok->len] = '\0';
-    fprintf(
-      stderr, "kind: %d, val: %d, str: %s\n", tok->kind, tok->val, token_str);
+    fprintf(stderr,
+            "kind: %d, val: %lld, str: %s\n",
+            tok->kind,
+            tok->val,
+            tok->str->data);
   }
 }
 
@@ -209,10 +210,9 @@ tokenize(char* p)
     }
 
     if (isdigit(*p)) {
-      Token* tok = token_new(TK_NUM, p, 0);
       char* q = p;
-      tok->val = strtol(p, &p, 10);
-      tok->len = p - q;
+      Token* tok = token_new(TK_NUM, q, p - q);
+      tok->val = strtoll(p, &p, 10);
       vector_push(tokens->tokens, tok);
       continue;
     }
@@ -382,7 +382,17 @@ tokenize(char* p)
       continue;
     }
 
-    error_at(p, "invalid token");
+    if (*p == '"') {
+      char* q = ++p;
+      while (*p != '"')
+        p++;
+      vector_push(tokens->tokens, token_new(TK_STR, q, p - q));
+      p++;
+      continue;
+    }
+
+    fprintf(stderr, "invalid token\n");
+    exit(1);
   }
 
   vector_push(tokens->tokens, token_new(TK_EOF, p, 0));
