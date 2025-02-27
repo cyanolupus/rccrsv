@@ -496,6 +496,36 @@ gen_1op(Node* node)
         default:
           break;
       }
+      switch (lhs->type->kind) {
+        case TY_ISIZE:
+          switch (node->type->kind) {
+            case TY_I8:
+              writer("  sxtb %s, %s ; Invalid cast\n", r0, r_r0);
+              return;
+            case TY_U8:
+              writer("  uxtb %s, %s ; Invalid cast\n", r0, r_r0);
+              return;
+            case TY_I16:
+              writer("  sxth %s, %s ; Invalid cast\n", r0, r_r0);
+              return;
+            case TY_U16:
+              writer("  uxth %s, %s ; Invalid cast\n", r0, r_r0);
+              return;
+            case TY_I32:
+              writer("  sxtw %s, %s ; Invalid cast\n", r0, r_r0);
+              return;
+            case TY_U32:
+              writer("  uxtw %s, %s ; Invalid cast\n", r0, r_r0);
+              return;
+            case TY_USIZE:
+              writer("  uxtw %s, %s ; Invalid cast\n", r0, r_r0);
+              return;
+            default:
+              break;
+          }
+        default:
+          break;
+      }
       fprintf(stderr,
               "Invalid type cast %s -> %s\n",
               type_to_string(lhs->type)->data,
