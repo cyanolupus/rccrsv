@@ -39,10 +39,11 @@ gen_lval(Node* node)
            string_as_cstring(lvar->name),
            type_to_string(lvar->type)->data);
   } else if (node->kind == ND_GVAR) {
-    writer("  adrp %s, %s\n",
+    writer("  adrp %s, _%s@PAGE\n", /* in arm64-apple-darwin @PAGE is needed */
            r0,
            string_as_cstring(vector_get_lvar(node->argv, 0)->name));
-    writer("  add %s, %s, :lo12:%s\n",
+    writer("  add %s, %s, _%s@PAGEOFF\n", /* in arm64-apple-darwin @PAGEOFF is
+                                            used instead of :lo12: */
            r0,
            r0,
            string_as_cstring(vector_get_lvar(node->argv, 0)->name));
@@ -88,31 +89,6 @@ gen_assign(Node* node)
 {
   Node* lhs = vector_get_node(node->children, 0);
   Node* rhs = vector_get_node(node->children, 1);
-  if (lhs->kind == ND_GVAR) {
-    writer("%s:\n", string_as_cstring(vector_get_lvar(lhs->argv, 0)->name));
-    if (lhs->type->kind == TY_ARRAY) {
-      writer("  .zero %lu\n", type_sizeof_aligned(lhs->type));
-    }
-    if (lhs->type->kind == TY_PTR) {
-      writer("  .zero %lu\n", type_sizeof_aligned(lhs->type));
-    }
-    if (lhs->type->kind == TY_I8 || lhs->type->kind == TY_U8) {
-      writer("  .byte %c\n", *(unsigned int*)&rhs->val);
-    }
-    if (lhs->type->kind == TY_I16 || lhs->type->kind == TY_U16) {
-      writer("  .hword %d\n", *(unsigned int*)&rhs->val);
-    }
-    if (lhs->type->kind == TY_ISIZE || lhs->type->kind == TY_USIZE) {
-      writer("  .word %d\n", *(unsigned int*)&rhs->val);
-    }
-    if (lhs->type->kind == TY_I32 || lhs->type->kind == TY_U32) {
-      writer("  .word %d\n", *(unsigned long*)&rhs->val);
-    }
-    if (lhs->type->kind == TY_I64 || lhs->type->kind == TY_U64) {
-      writer("  .quad %d\n", *(unsigned long long*)&rhs->val);
-    }
-    return;
-  }
   const char* r0 = rn(0, type_sizeof_aligned(type_new_ptr(node->type)));
   const char* r_r0 = rn(0, type_sizeof_aligned(lhs->type));
   const char* r9 = rn(9, type_sizeof_aligned(type_new_ptr(node->type)));
@@ -121,7 +97,28 @@ gen_assign(Node* node)
   gen(rhs);
 
   writer("  ldr %s, [sp], #16\n", r9);
-  writer("  str %s, [%s]\n", r_r0, r9);
+  switch (lhs->type->kind) {
+    case TY_I8:
+    case TY_U8:
+      writer("  strb %s, [%s]\n", r_r0, r9);
+      break;
+    case TY_I16:
+    case TY_U16:
+      writer("  strh %s, [%s]\n", r_r0, r9);
+      break;
+    case TY_ISIZE:
+    case TY_USIZE:
+    case TY_I32:
+    case TY_U32:
+    case TY_I64:
+    case TY_U64:
+    case TY_PTR:
+    case TY_ARRAY:
+      writer("  str %s, [%s]\n", r_r0, r9);
+      break;
+    default:
+      error("Not supported type %s", type_to_string(lhs->type)->data);
+  }
 }
 
 void
@@ -139,7 +136,28 @@ gen_post_assign(Node* node)
   gen(rhs);
 
   writer("  ldr %s, [sp], #16\n", r9);
-  writer("  str %s, [%s]\n", r_r0, r9);
+  switch (lhs->type->kind) {
+    case TY_I8:
+    case TY_U8:
+      writer("  strb %s, [%s]\n", r_r0, r9);
+      break;
+    case TY_I16:
+    case TY_U16:
+      writer("  strh %s, [%s]\n", r_r0, r9);
+      break;
+    case TY_ISIZE:
+    case TY_USIZE:
+    case TY_I32:
+    case TY_U32:
+    case TY_I64:
+    case TY_U64:
+    case TY_PTR:
+    case TY_ARRAY:
+      writer("  str %s, [%s]\n", r_r0, r9);
+      break;
+    default:
+      error("Not supported type %s", type_to_string(lhs->type)->data);
+  }
   writer("  ldr %s, [sp], #16\n", r_r0);
 }
 
@@ -467,7 +485,8 @@ gen_1op(Node* node)
             case TY_PTR:
             case TY_ARRAY:
               writer("  uxtw %s, %s\n", r0, r_r0);
-              writer("  mov %s, #%d\n", r9, type_sizeof(node->type->ptr_to));
+              writer(
+                "  mov %s, #%d\n", r9, type_sizeof_aligned(node->type->ptr_to));
               writer("  mul %s, %s, %s\n", r0, r0, r9);
               return;
             default:
@@ -491,6 +510,7 @@ gen_1op(Node* node)
 void
 gen(Node* node)
 {
+  Node* assign;
   if (node == NULL)
     return;
   switch (node->kind) {
@@ -498,6 +518,7 @@ gen(Node* node)
       gen_num(node);
       break;
     case ND_LVAR:
+    case ND_GVAR:
       gen_lvar(node);
       break;
     case ND_ASSIGN:
@@ -553,11 +574,57 @@ gen(Node* node)
       gen_1op(node);
       break;
     case ND_LDECLARE:
+      writer("  ; declare local variable %s\n",
+             string_as_cstring(vector_get_lvar(node->argv, 0)->name));
+      if (node->children) {
+        assign = vector_get_node(node->children, 0);
+        if (assign && assign->kind == ND_ASSIGN) {
+          gen_assign(assign);
+          return;
+        }
+      }
       break;
     case ND_GDECLARE:
-      writer("%s:\n", string_as_cstring(vector_get_lvar(node->argv, 0)->name));
-      writer("  .zero %lu\n",
-             type_sizeof_aligned(vector_get_lvar(node->argv, 0)->type));
+      writer("; declare global variable %s\n",
+             string_as_cstring(vector_get_lvar(node->argv, 0)->name));
+      long long val = 0;
+      if (node->children) {
+        assign = vector_get_node(node->children, 0);
+        if (assign && assign->kind == ND_ASSIGN) {
+          val = vector_get_node(assign->children, 1)->val;
+        }
+      }
+      if (!node->type) {
+        error("Type is not set for global variable %s",
+              string_as_cstring(vector_get_lvar(node->argv, 0)->name));
+      }
+      if (node->type->kind == TY_FUNC) {
+        return;
+      }
+      writer(".global _%s\n",
+             string_as_cstring(vector_get_lvar(node->argv, 0)->name));
+      writer("_%s:\n", string_as_cstring(vector_get_lvar(node->argv, 0)->name));
+      if (node->type->kind == TY_ARRAY) {
+        writer("  .zero %lu\n", type_sizeof_aligned(node->type));
+      }
+      if (node->type->kind == TY_PTR) {
+        writer("  .xword %d\n", val);
+      }
+      if (node->type->kind == TY_I8 || node->type->kind == TY_U8) {
+        writer("  .byte %d\n", *(signed int*)&val);
+      }
+      if (node->type->kind == TY_I16 || node->type->kind == TY_U16) {
+        writer("  .hword %d\n", *(signed int*)&val);
+      }
+      if (node->type->kind == TY_ISIZE || node->type->kind == TY_USIZE) {
+        writer("  .word %d\n", *(signed int*)&val);
+      }
+      if (node->type->kind == TY_I32 || node->type->kind == TY_U32) {
+        writer("  .word %ld\n", *(signed long*)&val);
+      }
+      if (node->type->kind == TY_I64 || node->type->kind == TY_U64) {
+        writer("  .xword %lld\n", *(signed long long*)&val);
+      }
       break;
     default:
       error("NodeKind is not supported %d", node->kind);
@@ -580,4 +647,22 @@ gen_stmt(Node* node)
   if (node == NULL)
     return;
   gen(node);
+}
+
+void
+gen_code(Program* program)
+{
+  if (!program)
+    return;
+  if (!(program->vars->size == 0)) {
+    writer(".section __DATA,__data\n");
+  }
+  for (int i = 0; i < program->vars->size; i++) {
+    gen_stmt(vector_get_node(program->vars, i));
+  }
+  writer(".section __TEXT,__text\n");
+  writer(".align 2\n");
+  for (int i = 0; i < program->code->size; i++) {
+    gen_stmt(vector_get_node(program->code, i));
+  }
 }

@@ -234,6 +234,7 @@ expr(Tokens* self);
 struct Program
 {
   Vector* code;
+  Vector* vars;
   HashMap* locals;
   HashMap* globals;
   int latest_offset;
@@ -269,6 +270,9 @@ void
 node_view_tree(Node* node, size_t depth);
 
 // codegen.c
+void
+gen_code(Program* program);
+
 void
 gen(Node* node);
 

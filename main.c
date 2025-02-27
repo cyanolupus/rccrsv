@@ -66,9 +66,7 @@ main(int argc, char** argv)
 
   add_node(program, tokens);
 
-  for (int i = 0; i < program->code->size; i++) {
-    gen_stmt(vector_get_node(program->code, i));
-  }
+  gen_code(program);
 
   fclose(output_fp);
   return 0;

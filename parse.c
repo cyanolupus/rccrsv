@@ -42,38 +42,37 @@ node_kind_to_string(Node* node)
       return string_new("return");
     case ND_NUM: {
       char buf[255];
-      // snprintf(buf, 255, "%d", node->val);
       switch (node->type->kind) {
-      TY_I8:
-        snprintf(buf, 255, "%d", *(int*)&node->val);
-        break;
-      TY_I16:
-        snprintf(buf, 255, "%d", *(int*)&node->val);
-        break;
-      TY_ISIZE:
-        snprintf(buf, 255, "%d", *(int*)&node->val);
-        break;
-      TY_I32:
-        snprintf(buf, 255, "%ld", *(long*)&node->val);
-        break;
-      TY_I64:
-        snprintf(buf, 255, "%lld", *(long long*)&node->val);
-        break;
-      TY_U8:
-        snprintf(buf, 255, "%u", *(unsigned int*)&node->val);
-        break;
-      TY_U16:
-        snprintf(buf, 255, "%u", *(unsigned int*)&node->val);
-        break;
-      TY_USIZE:
-        snprintf(buf, 255, "%u", *(unsigned int*)&node->val);
-        break;
-      TY_U32:
-        snprintf(buf, 255, "%lu", *(unsigned long*)&node->val);
-        break;
-      TY_U64:
-        snprintf(buf, 255, "%llu", *(unsigned long long*)&node->val);
-        break;
+        case TY_I8:
+          snprintf(buf, 255, "%d", *(int*)&node->val);
+          break;
+        case TY_I16:
+          snprintf(buf, 255, "%d", *(int*)&node->val);
+          break;
+        case TY_ISIZE:
+          snprintf(buf, 255, "%d", *(int*)&node->val);
+          break;
+        case TY_I32:
+          snprintf(buf, 255, "%ld", *(long*)&node->val);
+          break;
+        case TY_I64:
+          snprintf(buf, 255, "%lld", *(long long*)&node->val);
+          break;
+        case TY_U8:
+          snprintf(buf, 255, "%u", *(unsigned int*)&node->val);
+          break;
+        case TY_U16:
+          snprintf(buf, 255, "%u", *(unsigned int*)&node->val);
+          break;
+        case TY_USIZE:
+          snprintf(buf, 255, "%u", *(unsigned int*)&node->val);
+          break;
+        case TY_U32:
+          snprintf(buf, 255, "%lu", *(unsigned long*)&node->val);
+          break;
+        case TY_U64:
+          snprintf(buf, 255, "%llu", *(unsigned long long*)&node->val);
+          break;
         default:
           error("Invalid number type: %s", type_to_string(node->type)->data);
       }
@@ -92,9 +91,9 @@ node_kind_to_string(Node* node)
     case ND_FUNC:
       return string_new("func");
     case ND_LDECLARE:
-      return string_new("local declaration");
+      return string_new("local declare");
     case ND_GDECLARE:
-      return string_new("global declaration");
+      return string_new("global declare");
     case ND_DEREF:
       return string_new("deref");
     case ND_REF:
@@ -169,26 +168,6 @@ node_new_func()
   node->val = 0;
   node->argv = vector_new();
   node->children = vector_new();
-  return node;
-}
-
-Node*
-node_new_ldeclare(LVar* lvar)
-{
-  Node* node = node_new(ND_LDECLARE, lvar->type);
-  node->val = 0;
-  node->argv = vector_new();
-  vector_push(node->argv, lvar);
-  return node;
-}
-
-Node*
-node_new_gdeclare(LVar* lvar)
-{
-  Node* node = node_new(ND_GDECLARE, lvar->type);
-  node->val = 0;
-  node->argv = vector_new();
-  vector_push(node->argv, lvar);
   return node;
 }
 
@@ -300,6 +279,14 @@ node_new_gvar(LVar* lvar)
 }
 
 Node*
+node_new_var(LVar* lvar)
+{
+  if (lvar->offset == 0)
+    return node_new_gvar(lvar);
+  return node_new_lvar(lvar);
+}
+
+Node*
 node_new_call(LVar* lvar)
 {
   Node* node = node_new(ND_CALL, lvar->type->ptr_to);
@@ -353,17 +340,60 @@ node_new_post_assign(Node* lhs, Node* rhs)
   return node_new_typed_cast(ND_POST_ASSIGN, lhs, rhs);
 }
 
+Node*
+node_new_ldeclare(LVar* lvar)
+{
+  Node* node = node_new(ND_LDECLARE, lvar->type);
+  node->val = 0;
+  node->argv = vector_new();
+  vector_push(node->argv, lvar);
+  return node;
+}
+
+Node*
+node_new_ldeclare_with_init(LVar* lvar, Node* init)
+{
+  Node* node = node_new(ND_LDECLARE, lvar->type);
+  node->val = 0;
+  node->argv = vector_new();
+  vector_push(node->argv, lvar);
+  node->children = vector_new();
+  vector_push(node->children, node_new_assign(node_new_lvar(lvar), init));
+  return node;
+}
+
+Node*
+node_new_gdeclare(LVar* lvar)
+{
+  Node* node = node_new(ND_GDECLARE, lvar->type);
+  node->val = 0;
+  node->argv = vector_new();
+  vector_push(node->argv, lvar);
+  return node;
+}
+
+Node*
+node_new_gdeclare_with_init(LVar* lvar, Node* init)
+{
+  Node* node = node_new(ND_GDECLARE, lvar->type);
+  node->val = 0;
+  node->argv = vector_new();
+  vector_push(node->argv, lvar);
+  node->children = vector_new();
+  vector_push(node->children, node_new_assign(node_new_gvar(lvar), init));
+  return node;
+}
+
 void
 node_view_tree(Node* node, size_t depth)
 {
   if (!node)
     return;
   for (int i = 0; i < depth; i++)
-    fprintf(stderr, "  ");
-  fprintf(stderr,
-          "%s %s\n",
-          node_kind_to_string(node)->data,
-          type_to_string(node->type)->data);
+    printf("  ");
+  printf("%s %s\n",
+         node_kind_to_string(node)->data,
+         type_to_string(node->type)->data);
   if (!node->children)
     return;
   for (int i = 0; i < node->children->size; i++) {
@@ -389,7 +419,7 @@ primary(Tokens* tokens)
 
     if (lvar->type->kind == TY_ARRAY && token_consume(tokens, "[")) {
       Node* node = node_new_1op(
-        ND_REF, node_new_lvar(lvar), type_new_ptr(lvar->type->ptr_to));
+        ND_REF, node_new_var(lvar), type_new_ptr(lvar->type->ptr_to));
       Node* offset = expr(tokens);
       token_expect(tokens, "]");
       if (node->type->ptr_to == NULL)
@@ -402,19 +432,19 @@ primary(Tokens* tokens)
 
     if (token_consume(tokens, "++")) {
       Node* add = node_new_typed_cast(
-        ND_ADD, node_new_lvar(lvar), node_new_number(1, type_new_u8()));
-      Node* assign = node_new_post_assign(node_new_lvar(lvar), add);
+        ND_ADD, node_new_var(lvar), node_new_number(1, type_new_u8()));
+      Node* assign = node_new_post_assign(node_new_var(lvar), add);
       return assign;
     }
 
     if (token_consume(tokens, "--")) {
       Node* sub = node_new_typed_cast(
-        ND_SUB, node_new_lvar(lvar), node_new_number(1, type_new_u8()));
-      Node* assign = node_new_post_assign(node_new_lvar(lvar), sub);
+        ND_SUB, node_new_var(lvar), node_new_number(1, type_new_u8()));
+      Node* assign = node_new_post_assign(node_new_var(lvar), sub);
       return assign;
     }
 
-    Node* node = node_new_lvar(lvar);
+    Node* node = node_new_var(lvar);
     if (lvar->type->kind == TY_ARRAY) {
       return node_new_1op(ND_REF, node, type_new_ptr(lvar->type->ptr_to));
     }
@@ -448,16 +478,16 @@ unary(Tokens* tokens)
     Token* tok = token_expect_ident(tokens);
     LVar* lvar = expect_var(tok);
     Node* add = node_new_typed_cast(
-      ND_ADD, node_new_lvar(lvar), node_new_number(1, type_new_u8()));
-    Node* assign = node_new_assign(node_new_lvar(lvar), add);
+      ND_ADD, node_new_var(lvar), node_new_number(1, type_new_u8()));
+    Node* assign = node_new_assign(node_new_var(lvar), add);
     return assign;
   }
   if (token_consume(tokens, "--")) {
     Token* tok = token_expect_ident(tokens);
     LVar* lvar = expect_var(tok);
     Node* sub = node_new_typed_cast(
-      ND_SUB, node_new_lvar(lvar), node_new_number(1, type_new_u8()));
-    Node* assign = node_new_assign(node_new_lvar(lvar), sub);
+      ND_SUB, node_new_var(lvar), node_new_number(1, type_new_u8()));
+    Node* assign = node_new_assign(node_new_var(lvar), sub);
     return assign;
   }
   if (token_consume(tokens, "+"))
@@ -773,12 +803,11 @@ declaration(Tokens* tokens, bool global)
     }
 
     if (token_consume(tokens, "=")) {
-      if (global)
-        return node_new_assign(
-          node_new_gvar(lvar),
-          node_new_const(token_expect_number(tokens), lvar->type));
-      else
-        return node_new_assign(node_new_lvar(lvar), assign(tokens));
+      if (global) {
+        return node_new_gdeclare_with_init(
+          lvar, node_new_const(token_expect_number(tokens), lvar->type));
+      } else
+        return node_new_ldeclare_with_init(lvar, assign(tokens));
     }
   }
 
@@ -866,10 +895,6 @@ global(Tokens* tokens)
     node->val = program->code->size;
     return node;
   }
-  if (node->kind == ND_ASSIGN) {
-    token_expect(tokens, ";");
-    return node;
-  }
   if (node->kind == ND_GDECLARE) {
     token_expect(tokens, ";");
     return node;
@@ -883,7 +908,11 @@ add_node(Program* program, Tokens* tokens)
   while (!token_at_eof(tokens)) {
     Node* node = global(tokens);
     if (node) {
-      vector_push(program->code, node);
+      if (node->kind == ND_FUNC) {
+        vector_push(program->code, node);
+      } else if (node->kind == ND_GDECLARE) {
+        vector_push(program->vars, node);
+      }
     }
   }
 }
@@ -903,6 +932,7 @@ program_new()
 {
   Program* program = calloc(1, sizeof(Program));
   program->code = vector_new();
+  program->vars = vector_new();
   program->locals = hashmap_new();
   program->globals = hashmap_new();
   program->latest_offset = 16;
