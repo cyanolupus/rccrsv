@@ -38,6 +38,14 @@ gen_lval(Node* node)
            lvar->offset,
            string_as_cstring(lvar->name),
            type_to_string(lvar->type)->data);
+  } else if (node->kind == ND_GVAR) {
+    writer("  adrp %s, %s\n",
+           r0,
+           string_as_cstring(vector_get_lvar(node->argv, 0)->name));
+    writer("  add %s, %s, :lo12:%s\n",
+           r0,
+           r0,
+           string_as_cstring(vector_get_lvar(node->argv, 0)->name));
   } else
     error("Not a variable on the left side of the assignment");
 }
@@ -80,6 +88,31 @@ gen_assign(Node* node)
 {
   Node* lhs = vector_get_node(node->children, 0);
   Node* rhs = vector_get_node(node->children, 1);
+  if (lhs->kind == ND_GVAR) {
+    writer("%s:\n", string_as_cstring(vector_get_lvar(lhs->argv, 0)->name));
+    if (lhs->type->kind == TY_ARRAY) {
+      writer("  .zero %lu\n", type_sizeof_aligned(lhs->type));
+    }
+    if (lhs->type->kind == TY_PTR) {
+      writer("  .zero %lu\n", type_sizeof_aligned(lhs->type));
+    }
+    if (lhs->type->kind == TY_I8 || lhs->type->kind == TY_U8) {
+      writer("  .byte %c\n", *(unsigned int*)&rhs->val);
+    }
+    if (lhs->type->kind == TY_I16 || lhs->type->kind == TY_U16) {
+      writer("  .hword %d\n", *(unsigned int*)&rhs->val);
+    }
+    if (lhs->type->kind == TY_ISIZE || lhs->type->kind == TY_USIZE) {
+      writer("  .word %d\n", *(unsigned int*)&rhs->val);
+    }
+    if (lhs->type->kind == TY_I32 || lhs->type->kind == TY_U32) {
+      writer("  .word %d\n", *(unsigned long*)&rhs->val);
+    }
+    if (lhs->type->kind == TY_I64 || lhs->type->kind == TY_U64) {
+      writer("  .quad %d\n", *(unsigned long long*)&rhs->val);
+    }
+    return;
+  }
   const char* r0 = rn(0, type_sizeof_aligned(type_new_ptr(node->type)));
   const char* r_r0 = rn(0, type_sizeof_aligned(lhs->type));
   const char* r9 = rn(9, type_sizeof_aligned(type_new_ptr(node->type)));
@@ -326,32 +359,109 @@ gen_1op(Node* node)
     case ND_SIZEOF:
       writer("  mov %s, %d\n", r0, type_sizeof(lhs->type));
       return;
-    case ND_CAST:
+    case ND_AUTOCAST:
       if (type_equals(lhs->type, node->type)) {
         eprintf("Reached unreachable code\n");
         return;
       }
       switch (lhs->type->kind) {
         case TY_PTR:
+          switch (node->type->kind) {
+            case TY_ARRAY:
+              writer("  mov %s, %s\n", r0, r_r0);
+              return;
+            default:
+              break;
+          }
+          break;
         case TY_ARRAY:
           switch (node->type->kind) {
             case TY_PTR:
-            case TY_ARRAY:
-              writer("  uxtw %s, %s\n", r0, r_r0);
+              writer("  mov %s, %s\n", r0, r_r0);
               return;
             default:
               break;
           }
           break;
         case TY_I8:
+          switch (node->type->kind) {
+            case TY_I16:
+            case TY_ISIZE:
+            case TY_I32:
+            case TY_I64:
+              writer("  sxtb %s, %s\n", r0, r_r0);
+              return;
+            default:
+              break;
+          }
         case TY_I16:
+          switch (node->type->kind) {
+            case TY_ISIZE:
+            case TY_I32:
+            case TY_I64:
+              writer("  sxth %s, %s\n", r0, r_r0);
+              return;
+            default:
+              break;
+          }
         case TY_ISIZE:
         case TY_I32:
+          switch (node->type->kind) {
+            case TY_ISIZE:
+            case TY_I32:
+            case TY_I64:
+              writer("  sxtw %s, %s\n", r0, r_r0);
+              return;
+            default:
+              break;
+          }
         case TY_I64:
+          switch (node->type->kind) {
+            default:
+              break;
+          }
         case TY_U8:
+          switch (node->type->kind) {
+            case TY_U16:
+            case TY_USIZE:
+            case TY_U32:
+            case TY_U64:
+            case TY_I16:
+            case TY_ISIZE:
+            case TY_I32:
+            case TY_I64:
+              writer("  uxtb %s, %s\n", r0, r_r0);
+              return;
+            default:
+              break;
+          }
         case TY_U16:
+          switch (node->type->kind) {
+            case TY_USIZE:
+            case TY_U32:
+            case TY_U64:
+            case TY_ISIZE:
+            case TY_I32:
+            case TY_I64:
+              writer("  uxth %s, %s\n", r0, r_r0);
+              return;
+            default:
+              break;
+          }
         case TY_USIZE:
         case TY_U32:
+          switch (node->type->kind) {
+            case TY_USIZE:
+            case TY_U32:
+            case TY_U64:
+            case TY_ISIZE:
+            case TY_I32:
+            case TY_I64:
+              writer("  uxtw %s, %s\n", r0, r_r0);
+              return;
+            default:
+              break;
+          }
         case TY_U64:
           switch (node->type->kind) {
             case TY_PTR:
@@ -439,10 +549,15 @@ gen(Node* node)
     case ND_NOT:
     case ND_DEREF:
     case ND_SIZEOF:
-    case ND_CAST:
+    case ND_AUTOCAST:
       gen_1op(node);
       break;
-    case ND_DECLARATION:
+    case ND_LDECLARE:
+      break;
+    case ND_GDECLARE:
+      writer("%s:\n", string_as_cstring(vector_get_lvar(node->argv, 0)->name));
+      writer("  .zero %lu\n",
+             type_sizeof_aligned(vector_get_lvar(node->argv, 0)->type));
       break;
     default:
       error("NodeKind is not supported %d", node->kind);

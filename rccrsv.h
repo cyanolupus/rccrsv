@@ -1,8 +1,8 @@
+#include <ctype.h>
 #include <stdarg.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <ctype.h>
-#include <stdbool.h>
 #include <string.h>
 
 int jmpcnt;
@@ -45,6 +45,7 @@ typedef enum
   ND_ASSIGN,
   ND_POST_ASSIGN,
   ND_LVAR,
+  ND_GVAR,
   ND_RETURN,
   ND_NUM,
   ND_IF,
@@ -53,8 +54,9 @@ typedef enum
   ND_BLOCK,
   ND_CALL,
   ND_FUNC,
-  ND_DECLARATION,
-  ND_CAST,
+  ND_LDECLARE,
+  ND_GDECLARE,
+  ND_AUTOCAST,
 } NodeKind;
 
 typedef enum
@@ -95,47 +97,66 @@ typedef struct Type Type;
 bool
 isnondigit(char c);
 
-struct Vector {
-    void **data;
-    size_t size;
-    size_t capacity;
+struct Vector
+{
+  void** data;
+  size_t size;
+  size_t capacity;
 };
 
-Vector *vector_new();
-void vector_push(Vector *vec, void *elem);
-void *vector_pop(Vector *vec);
-void *vector_get(Vector *vec, size_t index);
-Token *vector_get_token(Vector *vec, size_t index);
-Node *vector_get_node(Vector *vec, size_t index);
-LVar *vector_get_lvar(Vector *vec, size_t index);
-Type *vector_get_type(Vector *vec, size_t index);
+Vector*
+vector_new();
+void
+vector_push(Vector* vec, void* elem);
+void*
+vector_pop(Vector* vec);
+void*
+vector_get(Vector* vec, size_t index);
+Token*
+vector_get_token(Vector* vec, size_t index);
+Node*
+vector_get_node(Vector* vec, size_t index);
+LVar*
+vector_get_lvar(Vector* vec, size_t index);
+Type*
+vector_get_type(Vector* vec, size_t index);
 
-struct HashNode {
-    char *key;
-    void *value;
-    struct HashNode *next;
+struct HashNode
+{
+  char* key;
+  void* value;
+  struct HashNode* next;
 };
 
 #define HASHMAP_SIZE 256
 
-struct HashMap {
-    HashNode *buckets[HASHMAP_SIZE];
+struct HashMap
+{
+  HashNode* buckets[HASHMAP_SIZE];
 };
 
-HashMap *hashmap_new();
-void hashmap_put(HashMap *map, const char *key, void *value);
-void *hashmap_get(HashMap *map, const char *key);
+HashMap*
+hashmap_new();
+void
+hashmap_put(HashMap* map, const char* key, void* value);
+void*
+hashmap_get(HashMap* map, const char* key);
 
-struct String {
-    char *data;
-    size_t size;
-    size_t capacity;
+struct String
+{
+  char* data;
+  size_t size;
+  size_t capacity;
 };
 
-String *string_new(const char *initial);
-String *string_new_with_len(char *s, size_t len);
-void string_append(String *str, const char *s);
-const char *string_as_cstring(String *str);
+String*
+string_new(const char* initial);
+String*
+string_new_with_len(char* s, size_t len);
+void
+string_append(String* str, const char* s);
+const char*
+string_as_cstring(String* str);
 
 // tokenize.c
 struct Token
@@ -187,21 +208,21 @@ token_view(Tokens* self);
 
 // parse.c
 
-struct LVar {
-    String *name;
-    size_t offset;
-    Type *type;
+struct LVar
+{
+  String* name;
+  size_t offset;
+  Type* type;
 };
 
 struct Node
 {
   NodeKind kind;
-  int val;
-  Vector *children;
-  Vector *locals;
-  Vector *argv;
-  Type *type;
-  char *original_str;
+  Vector* children;
+  Vector* locals;
+  Vector* argv;
+  Type* type;
+  unsigned long long val;
 };
 
 Node*
@@ -212,8 +233,9 @@ expr(Tokens* self);
 
 struct Program
 {
-  Vector *code;
-  HashMap *locals;
+  Vector* code;
+  HashMap* locals;
+  HashMap* globals;
   int latest_offset;
 };
 
@@ -230,10 +252,16 @@ LVar*
 lvar_new(char* name, int len, int offset, Type* type);
 
 LVar*
+expect_var(Token* tok);
+
+LVar*
 expect_lvar(Token* tok);
 
 LVar*
 add_lvar(Token* tok, Type* type);
+
+LVar*
+add_gvar(Token* tok, Type* type);
 
 Program* program;
 
@@ -251,11 +279,12 @@ void
 gen_expr(Node* node);
 
 // type.c
-struct Type {
+struct Type
+{
   TypeKind kind;
   size_t size;
-  Vector *args;
-  struct Type *ptr_to;
+  Vector* args;
+  struct Type* ptr_to;
 };
 
 Type*
@@ -330,7 +359,7 @@ rn(size_t n, size_t size);
 
 // error.c
 void
-eprintf(char *fmt, ...);
+eprintf(char* fmt, ...);
 
 void
 error(char* fmt, ...);
@@ -347,4 +376,4 @@ eprintf_at_until(char* loc, size_t len, char* fmt, ...);
 void
 error_at_until(char* loc, size_t len, char* fmt, ...);
 
-char *user_input;
+char* user_input;

@@ -28,14 +28,55 @@ node_kind_to_string(Node* node)
       return string_new("=");
     case ND_LVAR: {
       char buf[255];
-      snprintf(buf, 255, "%s", vector_get_lvar(node->argv, 0)->name->data);
+      snprintf(
+        buf, 255, "local %s", vector_get_lvar(node->argv, 0)->name->data);
+      return string_new(buf);
+    }
+    case ND_GVAR: {
+      char buf[255];
+      snprintf(
+        buf, 255, "global %s", vector_get_lvar(node->argv, 0)->name->data);
       return string_new(buf);
     }
     case ND_RETURN:
       return string_new("return");
     case ND_NUM: {
       char buf[255];
-      snprintf(buf, 255, "%d", node->val);
+      // snprintf(buf, 255, "%d", node->val);
+      switch (node->type->kind) {
+      TY_I8:
+        snprintf(buf, 255, "%d", *(int*)&node->val);
+        break;
+      TY_I16:
+        snprintf(buf, 255, "%d", *(int*)&node->val);
+        break;
+      TY_ISIZE:
+        snprintf(buf, 255, "%d", *(int*)&node->val);
+        break;
+      TY_I32:
+        snprintf(buf, 255, "%ld", *(long*)&node->val);
+        break;
+      TY_I64:
+        snprintf(buf, 255, "%lld", *(long long*)&node->val);
+        break;
+      TY_U8:
+        snprintf(buf, 255, "%u", *(unsigned int*)&node->val);
+        break;
+      TY_U16:
+        snprintf(buf, 255, "%u", *(unsigned int*)&node->val);
+        break;
+      TY_USIZE:
+        snprintf(buf, 255, "%u", *(unsigned int*)&node->val);
+        break;
+      TY_U32:
+        snprintf(buf, 255, "%lu", *(unsigned long*)&node->val);
+        break;
+      TY_U64:
+        snprintf(buf, 255, "%llu", *(unsigned long long*)&node->val);
+        break;
+        default:
+          error("Invalid number type: %s", type_to_string(node->type)->data);
+      }
       return string_new(buf);
     }
     case ND_IF:
@@ -50,8 +91,10 @@ node_kind_to_string(Node* node)
       return string_new("call");
     case ND_FUNC:
       return string_new("func");
-    case ND_DECLARATION:
-      return string_new("declaration");
+    case ND_LDECLARE:
+      return string_new("local declaration");
+    case ND_GDECLARE:
+      return string_new("global declaration");
     case ND_DEREF:
       return string_new("deref");
     case ND_REF:
@@ -76,8 +119,8 @@ node_kind_to_string(Node* node)
       return string_new("&&");
     case ND_LOR:
       return string_new("||");
-    case ND_CAST:
-      return string_new("cast");
+    case ND_AUTOCAST:
+      return string_new("autocast");
     default:
       return string_new("unknown");
   }
@@ -130,9 +173,19 @@ node_new_func()
 }
 
 Node*
-node_new_declaraion(LVar* lvar)
+node_new_ldeclare(LVar* lvar)
 {
-  Node* node = node_new(ND_DECLARATION, lvar->type);
+  Node* node = node_new(ND_LDECLARE, lvar->type);
+  node->val = 0;
+  node->argv = vector_new();
+  vector_push(node->argv, lvar);
+  return node;
+}
+
+Node*
+node_new_gdeclare(LVar* lvar)
+{
+  Node* node = node_new(ND_GDECLARE, lvar->type);
   node->val = 0;
   node->argv = vector_new();
   vector_push(node->argv, lvar);
@@ -163,17 +216,84 @@ node_new_for(Node* init, Node* cond, Node* inc, Node* body)
 }
 
 Node*
-node_new_isize(int val)
+node_new_number(long long val, Type* type)
 {
-  Node* node = node_new(ND_NUM, type_new_isize());
-  node->val = val;
-  return node;
+  Node* node = node_new(ND_NUM, type);
+  switch (type->kind) {
+    case TY_I8:
+      node->val = val;
+      return node;
+    case TY_I16:
+      node->val = val;
+      return node;
+    case TY_ISIZE:
+      node->val = val;
+      return node;
+    case TY_I32:
+      node->val = val;
+      return node;
+    case TY_I64:
+      node->val = val;
+      return node;
+    case TY_U8:
+      node->val = val;
+      return node;
+    case TY_U16:
+      node->val = val;
+      return node;
+    case TY_USIZE:
+      node->val = val;
+      return node;
+    case TY_U32:
+      node->val = val;
+      return node;
+    case TY_U64:
+      node->val = val;
+      return node;
+    default:
+      fprintf(stderr, "Invalid number type: %s\n", type_to_string(type)->data);
+      exit(1);
+  }
+}
+
+Node*
+node_new_const(long long val, Type* type)
+{
+  switch (type->kind) {
+    case TY_I8:
+    case TY_I16:
+    case TY_ISIZE:
+    case TY_I32:
+    case TY_I64:
+    case TY_U8:
+    case TY_U16:
+    case TY_USIZE:
+    case TY_U32:
+    case TY_U64:
+      return node_new_number(val, type);
+    case TY_PTR:
+      return node_new(ND_NUM, type);
+    case TY_ARRAY:
+      return node_new(ND_NUM, type);
+    default:
+      fprintf(stderr, "Invalid const type: %s\n", type_to_string(type)->data);
+      exit(1);
+  }
 }
 
 Node*
 node_new_lvar(LVar* lvar)
 {
   Node* node = node_new(ND_LVAR, lvar->type);
+  node->argv = vector_new();
+  vector_push(node->argv, lvar);
+  return node;
+}
+
+Node*
+node_new_gvar(LVar* lvar)
+{
+  Node* node = node_new(ND_GVAR, lvar->type);
   node->argv = vector_new();
   vector_push(node->argv, lvar);
   return node;
@@ -190,11 +310,11 @@ node_new_call(LVar* lvar)
 }
 
 Node*
-node_new_cast(Node* lhs, Type* dst)
+node_new_autocast(Node* lhs, Type* dst)
 {
   if (type_equals(lhs->type, dst))
     return lhs;
-  Node* node = node_new_1op(ND_CAST, lhs, dst);
+  Node* node = node_new_1op(ND_AUTOCAST, lhs, dst);
   node->type = dst;
   return node;
 }
@@ -218,7 +338,7 @@ node_new_typed(NodeKind kind, Node* lhs, Node* rhs)
 Node*
 node_new_typed_cast(NodeKind kind, Node* lhs, Node* rhs)
 {
-  return node_new_typed(kind, lhs, node_new_cast(rhs, lhs->type));
+  return node_new_typed(kind, lhs, node_new_autocast(rhs, lhs->type));
 }
 
 Node*
@@ -256,7 +376,7 @@ primary(Tokens* tokens)
 {
   Token* tok = token_consume_ident(tokens);
   if (tok) {
-    LVar* lvar = expect_lvar(tok);
+    LVar* lvar = expect_var(tok);
     if (token_consume(tokens, "(")) {
       Node* node = node_new_call(lvar);
       while (!token_consume(tokens, ")")) {
@@ -281,15 +401,15 @@ primary(Tokens* tokens)
     }
 
     if (token_consume(tokens, "++")) {
-      Node* add =
-        node_new_typed_cast(ND_ADD, node_new_lvar(lvar), node_new_isize(1));
+      Node* add = node_new_typed_cast(
+        ND_ADD, node_new_lvar(lvar), node_new_number(1, type_new_u8()));
       Node* assign = node_new_post_assign(node_new_lvar(lvar), add);
       return assign;
     }
 
     if (token_consume(tokens, "--")) {
-      Node* sub =
-        node_new_typed_cast(ND_SUB, node_new_lvar(lvar), node_new_isize(1));
+      Node* sub = node_new_typed_cast(
+        ND_SUB, node_new_lvar(lvar), node_new_number(1, type_new_u8()));
       Node* assign = node_new_post_assign(node_new_lvar(lvar), sub);
       return assign;
     }
@@ -309,7 +429,8 @@ primary(Tokens* tokens)
 
   int num = token_expect_number(tokens);
   if (token_consume(tokens, "[")) {
-    Node* node = node_new_isize(num);
+    // Node* node = node_new_isize(num);
+    Node* node = node_new_number(num, type_new_isize());
     Node* offset = expr(tokens);
     token_expect(tokens, "]");
     return node_new_1op(ND_REF,
@@ -317,7 +438,7 @@ primary(Tokens* tokens)
                         type_new_ptr(offset->type));
   }
 
-  return node_new_isize(num);
+  return node_new_number(num, type_new_isize());
 }
 
 Node*
@@ -325,28 +446,32 @@ unary(Tokens* tokens)
 {
   if (token_consume(tokens, "++")) {
     Token* tok = token_expect_ident(tokens);
-    LVar* lvar = expect_lvar(tok);
-    Node* add =
-      node_new_typed_cast(ND_ADD, node_new_lvar(lvar), node_new_isize(1));
+    LVar* lvar = expect_var(tok);
+    Node* add = node_new_typed_cast(
+      ND_ADD, node_new_lvar(lvar), node_new_number(1, type_new_u8()));
     Node* assign = node_new_assign(node_new_lvar(lvar), add);
     return assign;
   }
   if (token_consume(tokens, "--")) {
     Token* tok = token_expect_ident(tokens);
-    LVar* lvar = expect_lvar(tok);
-    Node* sub =
-      node_new_typed_cast(ND_SUB, node_new_lvar(lvar), node_new_isize(1));
+    LVar* lvar = expect_var(tok);
+    Node* sub = node_new_typed_cast(
+      ND_SUB, node_new_lvar(lvar), node_new_number(1, type_new_u8()));
     Node* assign = node_new_assign(node_new_lvar(lvar), sub);
     return assign;
   }
   if (token_consume(tokens, "+"))
     return primary(tokens);
-  if (token_consume(tokens, "-"))
-    return node_new_typed_cast(ND_SUB, node_new_isize(0), primary(tokens));
+  if (token_consume(tokens, "-")) {
+    Node* node = primary(tokens);
+    return node_new_typed_cast(ND_SUB, node_new_number(0, node->type), node);
+  }
   if (token_consume(tokens, "!"))
     return node_new_1op(ND_LNOT, primary(tokens), type_new_isize());
-  if (token_consume(tokens, "~"))
-    return node_new_1op(ND_NOT, primary(tokens), type_new_isize());
+  if (token_consume(tokens, "~")) {
+    Node* node = primary(tokens);
+    return node_new_1op(ND_NOT, node, node->type);
+  }
   if (token_consume(tokens, "*")) {
     Node* node = unary(tokens);
     if (node->type->ptr_to == NULL)
@@ -427,21 +552,21 @@ relational(Tokens* tokens)
     if (token_consume(tokens, "<"))
       return node_new_2op(ND_LT,
                           node,
-                          node_new_cast(shift(tokens), node->type),
+                          node_new_autocast(shift(tokens), node->type),
                           type_new_isize());
     else if (token_consume(tokens, "<="))
       return node_new_2op(ND_LE,
                           node,
-                          node_new_cast(shift(tokens), node->type),
+                          node_new_autocast(shift(tokens), node->type),
                           type_new_isize());
     else if (token_consume(tokens, ">"))
       return node_new_2op(ND_LT,
-                          node_new_cast(shift(tokens), node->type),
+                          node_new_autocast(shift(tokens), node->type),
                           node,
                           type_new_isize());
     else if (token_consume(tokens, ">="))
       return node_new_2op(ND_LE,
-                          node_new_cast(shift(tokens), node->type),
+                          node_new_autocast(shift(tokens), node->type),
                           node,
                           type_new_isize());
     else
@@ -458,12 +583,12 @@ equality(Tokens* tokens)
     if (token_consume(tokens, "=="))
       return node_new_2op(ND_EQ,
                           node,
-                          node_new_cast(relational(tokens), node->type),
+                          node_new_autocast(relational(tokens), node->type),
                           type_new_isize());
     else if (token_consume(tokens, "!="))
       return node_new_2op(ND_NE,
                           node,
-                          node_new_cast(relational(tokens), node->type),
+                          node_new_autocast(relational(tokens), node->type),
                           type_new_isize());
     else
       return node;
@@ -590,7 +715,7 @@ assign(Tokens* tokens)
 }
 
 Node*
-declaration(Tokens* tokens)
+declaration(Tokens* tokens, bool global)
 {
   Type* type = token_consume_type(tokens);
   if (type) {
@@ -619,7 +744,10 @@ declaration(Tokens* tokens)
       vector_push(node->argv, lvar);
 
       if (token_peek(tokens, ";")) {
-        return node_new_declaraion(lvar);
+        if (global)
+          return node_new_gdeclare(lvar);
+        else
+          return node_new_ldeclare(lvar);
       }
 
       return node;
@@ -627,19 +755,30 @@ declaration(Tokens* tokens)
       int size = token_expect_number(tokens);
       token_expect(tokens, "]");
       type = type_new_array(type, size);
-      lvar = add_lvar(ident, type);
+      lvar = global ? add_gvar(ident, type) : add_lvar(ident, type);
       if (token_peek(tokens, ";")) {
-        return node_new_declaraion(lvar);
+        if (global)
+          return node_new_gdeclare(lvar);
+        else
+          return node_new_ldeclare(lvar);
       }
     } else {
-      lvar = add_lvar(ident, type);
+      lvar = global ? add_gvar(ident, type) : add_lvar(ident, type);
       if (token_peek(tokens, ";")) {
-        return node_new_declaraion(lvar);
+        if (global)
+          return node_new_gdeclare(lvar);
+        else
+          return node_new_ldeclare(lvar);
       }
     }
 
     if (token_consume(tokens, "=")) {
-      return node_new_assign(node_new_lvar(lvar), assign(tokens));
+      if (global)
+        return node_new_assign(
+          node_new_gvar(lvar),
+          node_new_const(token_expect_number(tokens), lvar->type));
+      else
+        return node_new_assign(node_new_lvar(lvar), assign(tokens));
     }
   }
 
@@ -649,7 +788,7 @@ declaration(Tokens* tokens)
 Node*
 expr(Tokens* tokens)
 {
-  Node* node = declaration(tokens);
+  Node* node = declaration(tokens, false);
   if (node) {
     return node;
   }
@@ -717,7 +856,7 @@ stmt(Tokens* tokens)
 Node*
 global(Tokens* tokens)
 {
-  Node* node = declaration(tokens);
+  Node* node = declaration(tokens, true);
   if (node->kind == ND_FUNC) {
     if (token_consume(tokens, "{")) {
       while (!token_consume(tokens, "}")) {
@@ -731,7 +870,7 @@ global(Tokens* tokens)
     token_expect(tokens, ";");
     return node;
   }
-  if (node->kind == ND_DECLARATION) {
+  if (node->kind == ND_GDECLARE) {
     token_expect(tokens, ";");
     return node;
   }
@@ -765,6 +904,8 @@ program_new()
   Program* program = calloc(1, sizeof(Program));
   program->code = vector_new();
   program->locals = hashmap_new();
+  program->globals = hashmap_new();
+  program->latest_offset = 16;
   return program;
 }
 
@@ -835,5 +976,76 @@ add_lvar(Token* tok, Type* type)
     }
   }
 
+  return lvar;
+}
+
+LVar*
+find_gvar(Token* tok)
+{
+  String* str = string_new_with_len(tok->str, tok->len);
+  return hashmap_get(program->globals, string_as_cstring(str));
+}
+
+LVar*
+find_gvar_str(char* name, int len)
+{
+  String* str = string_new_with_len(name, len);
+  return hashmap_get(program->globals, string_as_cstring(str));
+}
+
+LVar*
+expect_gvar(Token* tok)
+{
+  LVar* lvar = find_gvar(tok);
+  if (!lvar) {
+    error_at_until(
+      tok->str, tok->len, "undefined variable: %.*s", tok->len, tok->str);
+  }
+  return lvar;
+}
+
+LVar*
+expect_gvar_str(char* name, int len)
+{
+  LVar* lvar = find_gvar_str(name, len);
+  if (!lvar) {
+    error_at_until(name, len, "undefined variable: %.*s", len, name);
+  }
+  return lvar;
+}
+
+LVar*
+add_gvar(Token* tok, Type* type)
+{
+  LVar* lvar = find_gvar(tok);
+  if (lvar == NULL) {
+    lvar = lvar_new(tok->str, tok->len, 0, type);
+    hashmap_put(program->globals, string_as_cstring(lvar->name), lvar);
+  } else {
+    if (!type_equals(lvar->type, type)) {
+      error_at_until(tok->str,
+                     tok->len,
+                     "conflicting types for '%.*s' %s vs %s",
+                     tok->len,
+                     tok->str,
+                     type_to_string(lvar->type)->data,
+                     type_to_string(type)->data);
+    }
+  }
+
+  return lvar;
+}
+
+LVar*
+expect_var(Token* tok)
+{
+  LVar* lvar = find_lvar(tok);
+  if (!lvar) {
+    lvar = find_gvar(tok);
+  }
+  if (!lvar) {
+    error_at_until(
+      tok->str, tok->len, "undefined variable: %.*s", tok->len, tok->str);
+  }
   return lvar;
 }
