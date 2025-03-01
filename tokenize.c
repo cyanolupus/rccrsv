@@ -260,8 +260,28 @@ tokenize(char* p)
       p++;
       continue;
     }
+
     if (isspace(*p)) {
       p++;
+      continue;
+    }
+
+    if (strncmp(p, "//", 2) == 0) {
+      p += 2;
+      while (*p != '\n')
+        p++;
+      continue;
+    }
+
+    if (strncmp(p, "/*", 2) == 0) {
+      char* q = strstr(p + 2, "*/");
+      if (!q) {
+        tokens->pos = tokens->tokens->size - 1;
+        token_view(tokens);
+        fprintf(stderr, "unclosed comment\n");
+        exit(1);
+      }
+      p = q + 2;
       continue;
     }
 
