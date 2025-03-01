@@ -34,6 +34,15 @@ alloc_array(int** p, int n)
 }
 
 void
+alloc_array2(char** p, int n)
+{
+  *p = malloc(n);
+  for (int i = 0; i < n; i++) {
+    (*p)[i] = i;
+  }
+}
+
+void
 print_int(int x)
 {
   printf("%u\n", x);

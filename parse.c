@@ -74,9 +74,10 @@ node_kind_to_string(Node* node)
           snprintf(buf, 255, "%llu", *(unsigned long long*)&node->val);
           break;
         default:
+          node_view_tree(program->node, 0, node);
           fprintf(stderr,
                   "Invalid number type: %s\n",
-                  type_to_string(node->type)->data);
+                  type_to_string(*node->type)->data);
           exit(1);
       }
       return string_new(buf);
@@ -125,6 +126,8 @@ node_kind_to_string(Node* node)
       return string_new("autocast");
     case ND_STRING:
       return string_new("string");
+    case ND_CODE:
+      return string_new("code");
     default:
       return string_new("unknown");
   }
@@ -200,44 +203,24 @@ node_new_for(Node* init, Node* cond, Node* inc, Node* body)
 }
 
 Node*
-node_new_number(long long val, Type* type)
+node_new_number(long long val)
 {
+  Type* type;
+  if (0 <= val && val <= 127)
+    type = type_new_i8();
+  else if (0 <= val && val <= 255)
+    type = type_new_u8();
+  else if (0 <= val && val <= 32767)
+    type = type_new_i16();
+  else if (0 <= val && val <= 2147483647)
+    type = type_new_i32();
+  else if (0 <= val && val <= 4294967295)
+    type = type_new_u32();
+  else
+    type = type_new_u64();
   Node* node = node_new(ND_NUM, type);
-  switch (type->kind) {
-    case TY_I8:
-      node->val = val;
-      return node;
-    case TY_I16:
-      node->val = val;
-      return node;
-    case TY_ISIZE:
-      node->val = val;
-      return node;
-    case TY_I32:
-      node->val = val;
-      return node;
-    case TY_I64:
-      node->val = val;
-      return node;
-    case TY_U8:
-      node->val = val;
-      return node;
-    case TY_U16:
-      node->val = val;
-      return node;
-    case TY_USIZE:
-      node->val = val;
-      return node;
-    case TY_U32:
-      node->val = val;
-      return node;
-    case TY_U64:
-      node->val = val;
-      return node;
-    default:
-      fprintf(stderr, "Invalid number type: %s\n", type_to_string(type)->data);
-      exit(1);
-  }
+  node->val = val;
+  return node;
 }
 
 Node*
@@ -254,13 +237,13 @@ node_new_const(long long val, Type* type)
     case TY_USIZE:
     case TY_U32:
     case TY_U64:
-      return node_new_number(val, type);
+      return node_new_number(val);
     case TY_PTR:
       return node_new(ND_NUM, type);
     case TY_ARRAY:
       return node_new(ND_NUM, type);
     default:
-      fprintf(stderr, "Invalid const type: %s\n", type_to_string(type)->data);
+      fprintf(stderr, "Invalid const type: %s\n", type_to_string(*type)->data);
       exit(1);
   }
 }
@@ -302,13 +285,15 @@ node_new_call(LVar* lvar)
 }
 
 Node*
-node_new_autocast(Node* lhs, Type* dst)
+node_new_autocast(Node* lhs, Type* type)
 {
-  if (type_equals(lhs->type, dst))
+  if (!lhs || !lhs->type) {
+    fprintf(stderr, "node cannot be autocasted\n");
+    exit(1);
+  }
+  if (type_equals(*lhs->type, *type))
     return lhs;
-  Node* node = node_new_1op(ND_AUTOCAST, lhs, dst);
-  node->type = dst;
-  return node;
+  return node_new_1op(ND_AUTOCAST, lhs, type);
 }
 
 Node*
@@ -320,10 +305,10 @@ node_new_typed(NodeKind kind, Node* lhs, Node* rhs)
   }
   if (!rhs->type)
     return node_new_2op(kind, lhs, rhs, lhs->type);
-  if (!type_equals(lhs->type, rhs->type)) {
+  if (!type_equals(*lhs->type, *rhs->type)) {
     fprintf(stderr,
             "Type mismatch: %s %s %s\n",
-            type_to_string(lhs->type)->data,
+            type_to_string(*lhs->type)->data,
             node_kind_to_string(lhs)->data,
             node_kind_to_string(rhs)->data);
     exit(1);
@@ -332,21 +317,40 @@ node_new_typed(NodeKind kind, Node* lhs, Node* rhs)
 }
 
 Node*
-node_new_typed_cast(NodeKind kind, Node* lhs, Node* rhs)
+node_new_integer_promotion_typed(Node* lhs)
 {
-  return node_new_typed(kind, lhs, node_new_autocast(rhs, lhs->type));
+  Type* type = type_integer_promotion(*lhs->type);
+  return node_new_autocast(lhs, type);
+}
+
+Node*
+node_new_arithmetic(NodeKind kind, Node* lhs, Node* rhs, Type* type)
+{
+  Type* oprand_type = type_arithmetic_autocast(*lhs->type, *rhs->type);
+  return node_new_2op(kind,
+                      node_new_autocast(lhs, oprand_type),
+                      node_new_autocast(rhs, oprand_type),
+                      type);
+}
+
+Node*
+node_new_arithmetic_typed(NodeKind kind, Node* lhs, Node* rhs)
+{
+  Type* type = type_arithmetic_autocast(*lhs->type, *rhs->type);
+  return node_new_typed(
+    kind, node_new_autocast(lhs, type), node_new_autocast(rhs, type));
 }
 
 Node*
 node_new_assign(Node* lhs, Node* rhs)
 {
-  return node_new_typed_cast(ND_ASSIGN, lhs, rhs);
+  return node_new_typed(ND_ASSIGN, lhs, node_new_autocast(rhs, lhs->type));
 }
 
 Node*
 node_new_post_assign(Node* lhs, Node* rhs)
 {
-  return node_new_typed_cast(ND_POST_ASSIGN, lhs, rhs);
+  return node_new_typed(ND_POST_ASSIGN, lhs, node_new_autocast(rhs, lhs->type));
 }
 
 Node*
@@ -396,26 +400,31 @@ node_new_gdeclare_with_init(LVar* lvar, Node* init)
 Node*
 node_new_string(size_t index)
 {
-  Node* node = node_new(ND_STRING, type_new_ptr(type_new_u8()));
+  Node* node = node_new(ND_STRING, type_new_ptr(*type_new_i8()));
   node->argv = vector_new(1);
   node->val = index;
   return node;
 }
 
 void
-node_view_tree(Node* node, size_t depth)
+node_view_tree(Node* node, size_t depth, Node* target)
 {
   if (!node)
     return;
   for (int i = 0; i < depth; i++)
-    printf("  ");
-  printf("%s %s\n",
-         node_kind_to_string(node)->data,
-         type_to_string(node->type)->data);
+    fprintf(stderr, "  ");
+  fprintf(stderr, "%s", node_kind_to_string(node)->data);
+  if (node->type)
+    fprintf(stderr, " %s", type_to_string(*node->type)->data);
+
+  if (node == target)
+    fprintf(stderr, "  <-----\n");
+  else
+    fprintf(stderr, "\n");
   if (!node->children)
     return;
   for (int i = 0; i < node->children->size; i++) {
-    node_view_tree(vector_get_node(node->children, i), depth + 1);
+    node_view_tree(vector_get_node(node->children, i), depth + 1, target);
   }
 }
 
@@ -441,40 +450,33 @@ primary(Tokens* tokens)
       return node;
     }
 
-    if (lvar->type->kind == TY_ARRAY &&
+    if ((lvar->type->kind == TY_ARRAY || lvar->type->kind == TY_PTR) &&
         token_consume(tokens, string_new("["))) {
-      Node* node = node_new_1op(
-        ND_REF, node_new_var(lvar), type_new_ptr(lvar->type->ptr_to));
+      Node* node = node_new_var(lvar);
       Node* offset = expr(tokens);
       token_expect(tokens, string_new("]"));
-      if (node->type->ptr_to == NULL) {
-        fprintf(stderr,
-                "Dereference of non-pointer type: %s\n",
-                type_to_string(node->type)->data);
-        exit(1);
-      }
       return node_new_1op(ND_DEREF,
-                          node_new_typed_cast(ND_ADD, node, offset),
+                          node_new_arithmetic_typed(ND_ADD, node, offset),
                           node->type->ptr_to);
     }
 
     if (token_consume(tokens, string_new("++"))) {
-      Node* add = node_new_typed_cast(
-        ND_ADD, node_new_var(lvar), node_new_number(1, type_new_u8()));
+      Node* add = node_new_arithmetic_typed(
+        ND_ADD, node_new_var(lvar), node_new_number(1));
       Node* assign = node_new_post_assign(node_new_var(lvar), add);
       return assign;
     }
 
     if (token_consume(tokens, string_new("--"))) {
-      Node* sub = node_new_typed_cast(
-        ND_SUB, node_new_var(lvar), node_new_number(1, type_new_u8()));
+      Node* sub = node_new_arithmetic_typed(
+        ND_SUB, node_new_var(lvar), node_new_number(1));
       Node* assign = node_new_post_assign(node_new_var(lvar), sub);
       return assign;
     }
 
     Node* node = node_new_var(lvar);
     if (lvar->type->kind == TY_ARRAY) {
-      return node_new_1op(ND_REF, node, type_new_ptr(lvar->type->ptr_to));
+      return node_new_1op(ND_REF, node, type_new_ptr(*lvar->type->ptr_to));
     }
     return node;
   }
@@ -487,15 +489,21 @@ primary(Tokens* tokens)
 
   int num = token_expect_number(tokens);
   if (token_consume(tokens, string_new("["))) {
-    Node* node = node_new_number(num, type_new_isize());
-    Node* offset = expr(tokens);
+    Node* offset = node_new_number(num);
+    Node* node = expr(tokens);
+    if (node->type->kind != TY_PTR && node->type->kind != TY_ARRAY) {
+      fprintf(stderr,
+              "Dereference of non-pointer type: %s\n",
+              type_to_string(*node->type)->data);
+      exit(1);
+    }
     token_expect(tokens, string_new("]"));
-    return node_new_1op(ND_REF,
-                        node_new_typed_cast(ND_ADD, node, offset),
-                        type_new_ptr(offset->type));
+    return node_new_1op(ND_DEREF,
+                        node_new_arithmetic_typed(ND_ADD, node, offset),
+                        type_new_ptr(*offset->type));
   }
 
-  return node_new_number(num, type_new_isize());
+  return node_new_number(num);
 }
 
 Node*
@@ -504,29 +512,29 @@ unary(Tokens* tokens)
   if (token_consume(tokens, string_new("++"))) {
     String* name = token_expect_ident(tokens);
     LVar* lvar = expect_var(name);
-    Node* add = node_new_typed_cast(
-      ND_ADD, node_new_var(lvar), node_new_number(1, type_new_u8()));
+    Node* add =
+      node_new_arithmetic_typed(ND_ADD, node_new_var(lvar), node_new_number(1));
     Node* assign = node_new_assign(node_new_var(lvar), add);
     return assign;
   }
   if (token_consume(tokens, string_new("--"))) {
     String* name = token_expect_ident(tokens);
     LVar* lvar = expect_var(name);
-    Node* sub = node_new_typed_cast(
-      ND_SUB, node_new_var(lvar), node_new_number(1, type_new_u8()));
+    Node* sub =
+      node_new_arithmetic_typed(ND_SUB, node_new_var(lvar), node_new_number(1));
     Node* assign = node_new_assign(node_new_var(lvar), sub);
     return assign;
   }
   if (token_consume(tokens, string_new("+")))
     return primary(tokens);
   if (token_consume(tokens, string_new("-"))) {
-    Node* node = primary(tokens);
-    return node_new_typed_cast(ND_SUB, node_new_number(0, node->type), node);
+    return node_new_arithmetic_typed(
+      ND_SUB, node_new_number(0), primary(tokens));
   }
   if (token_consume(tokens, string_new("!")))
     return node_new_1op(ND_LNOT, primary(tokens), type_new_isize());
   if (token_consume(tokens, string_new("~"))) {
-    Node* node = primary(tokens);
+    Node* node = node_new_integer_promotion_typed(primary(tokens));
     return node_new_1op(ND_NOT, node, node->type);
   }
   if (token_consume(tokens, string_new("*"))) {
@@ -534,14 +542,14 @@ unary(Tokens* tokens)
     if (node->type->ptr_to == NULL) {
       fprintf(stderr,
               "Dereference of non-pointer type: %s\n",
-              type_to_string(node->type)->data);
+              type_to_string(*node->type)->data);
       exit(1);
     }
     return node_new_1op(ND_DEREF, node, node->type->ptr_to);
   }
   if (token_consume(tokens, string_new("&"))) {
     Node* node = unary(tokens);
-    return node_new_1op(ND_REF, node, type_new_ptr(node->type));
+    return node_new_1op(ND_REF, node, type_new_ptr(*node->type));
   }
   if (token_consume(tokens, string_new("sizeof")))
     return node_new_1op(ND_SIZEOF, unary(tokens), type_new_usize());
@@ -555,11 +563,11 @@ mul(Tokens* tokens)
 
   for (;;) {
     if (token_consume(tokens, string_new("*")))
-      node = node_new_typed_cast(ND_MUL, node, unary(tokens));
+      node = node_new_arithmetic_typed(ND_MUL, node, unary(tokens));
     else if (token_consume(tokens, string_new("/")))
-      node = node_new_typed_cast(ND_DIV, node, unary(tokens));
+      node = node_new_arithmetic_typed(ND_DIV, node, unary(tokens));
     else if (token_consume(tokens, string_new("%")))
-      node = node_new_typed_cast(ND_MOD, node, unary(tokens));
+      node = node_new_arithmetic_typed(ND_MOD, node, unary(tokens));
     else
       return node;
   }
@@ -573,15 +581,15 @@ add(Tokens* tokens)
     if (token_consume(tokens, string_new("+"))) {
       Node* rhs = mul(tokens);
       if (rhs->type->kind == TY_PTR)
-        return node_new_typed_cast(ND_ADD, rhs, node);
+        return node_new_arithmetic_typed(ND_ADD, rhs, node);
       else
-        return node_new_typed_cast(ND_ADD, node, rhs);
+        return node_new_arithmetic_typed(ND_ADD, node, rhs);
     } else if (token_consume(tokens, string_new("-"))) {
       Node* rhs = mul(tokens);
       if (rhs->type->kind == TY_PTR)
-        return node_new_typed_cast(ND_SUB, rhs, node);
+        return node_new_arithmetic_typed(ND_SUB, rhs, node);
       else
-        return node_new_typed_cast(ND_SUB, node, rhs);
+        return node_new_arithmetic_typed(ND_SUB, node, rhs);
     } else {
       return node;
     }
@@ -595,9 +603,15 @@ shift(Tokens* tokens)
 
   for (;;) {
     if (token_consume(tokens, string_new("<<")))
-      node = node_new_typed_cast(ND_SHIFT_L, node, add(tokens));
+      node = node_new_2op(ND_SHIFT_L,
+                          node,
+                          node_new_integer_promotion_typed(add(tokens)),
+                          node->type);
     else if (token_consume(tokens, string_new(">>")))
-      node = node_new_typed_cast(ND_SHIFT_R, node, add(tokens));
+      node = node_new_2op(ND_SHIFT_R,
+                          node,
+                          node_new_integer_promotion_typed(add(tokens)),
+                          node->type);
     else
       return node;
   }
@@ -610,25 +624,13 @@ relational(Tokens* tokens)
 
   for (;;) {
     if (token_consume(tokens, string_new("<")))
-      return node_new_2op(ND_LT,
-                          node,
-                          node_new_autocast(shift(tokens), node->type),
-                          type_new_isize());
+      return node_new_arithmetic(ND_LT, node, shift(tokens), type_new_isize());
     else if (token_consume(tokens, string_new("<=")))
-      return node_new_2op(ND_LE,
-                          node,
-                          node_new_autocast(shift(tokens), node->type),
-                          type_new_isize());
+      return node_new_arithmetic(ND_LE, node, shift(tokens), type_new_isize());
     else if (token_consume(tokens, string_new(">")))
-      return node_new_2op(ND_LT,
-                          node_new_autocast(shift(tokens), node->type),
-                          node,
-                          type_new_isize());
+      return node_new_arithmetic(ND_LT, shift(tokens), node, type_new_isize());
     else if (token_consume(tokens, string_new(">=")))
-      return node_new_2op(ND_LE,
-                          node_new_autocast(shift(tokens), node->type),
-                          node,
-                          type_new_isize());
+      return node_new_arithmetic(ND_LE, shift(tokens), node, type_new_isize());
     else
       return node;
   }
@@ -641,15 +643,11 @@ equality(Tokens* tokens)
 
   for (;;) {
     if (token_consume(tokens, string_new("==")))
-      return node_new_2op(ND_EQ,
-                          node,
-                          node_new_autocast(relational(tokens), node->type),
-                          type_new_isize());
+      return node_new_arithmetic(
+        ND_EQ, node, relational(tokens), type_new_isize());
     else if (token_consume(tokens, string_new("!=")))
-      return node_new_2op(ND_NE,
-                          node,
-                          node_new_autocast(relational(tokens), node->type),
-                          type_new_isize());
+      return node_new_arithmetic(
+        ND_NE, node, relational(tokens), type_new_isize());
     else
       return node;
   }
@@ -662,7 +660,7 @@ bitwise_and(Tokens* tokens)
 
   for (;;) {
     if (token_consume(tokens, string_new("&")))
-      node = node_new_typed_cast(ND_AND, node, equality(tokens));
+      node = node_new_arithmetic_typed(ND_AND, node, equality(tokens));
     else
       return node;
   }
@@ -675,7 +673,7 @@ bitwise_xor(Tokens* tokens)
 
   for (;;) {
     if (token_consume(tokens, string_new("^")))
-      node = node_new_typed_cast(ND_XOR, node, bitwise_and(tokens));
+      node = node_new_arithmetic_typed(ND_XOR, node, bitwise_and(tokens));
     else
       return node;
   }
@@ -688,7 +686,7 @@ bitwise_or(Tokens* tokens)
 
   for (;;) {
     if (token_consume(tokens, string_new("|")))
-      node = node_new_typed_cast(ND_OR, node, bitwise_xor(tokens));
+      node = node_new_arithmetic_typed(ND_OR, node, bitwise_xor(tokens));
     else
       return node;
   }
@@ -701,7 +699,8 @@ logical_and(Tokens* tokens)
 
   for (;;) {
     if (token_consume(tokens, string_new("&&")))
-      node = node_new_typed_cast(ND_AND, node, bitwise_or(tokens));
+      node =
+        node_new_arithmetic(ND_AND, node, bitwise_or(tokens), type_new_isize());
     else
       return node;
   }
@@ -714,7 +713,8 @@ logical_or(Tokens* tokens)
 
   for (;;) {
     if (token_consume(tokens, string_new("||")))
-      node = node_new_typed_cast(ND_OR, node, logical_and(tokens));
+      node =
+        node_new_arithmetic(ND_OR, node, logical_and(tokens), type_new_isize());
     else
       return node;
   }
@@ -729,7 +729,9 @@ conditional(Tokens* tokens)
     Node* then = conditional(tokens);
     token_expect(tokens, string_new(":"));
     Node* els = conditional(tokens);
-    return node_new_if(node, then, els, then->type);
+    Type* type = type_arithmetic_autocast(*then->type, *els->type);
+    return node_new_if(
+      node, node_new_autocast(then, type), node_new_autocast(els, type), type);
   }
   return node;
 }
@@ -742,35 +744,43 @@ assign(Tokens* tokens)
   if (token_consume(tokens, string_new("=")))
     node = node_new_assign(node, assign(tokens));
   else if (token_consume(tokens, string_new("+=")))
-    node =
-      node_new_assign(node, node_new_typed_cast(ND_ADD, node, assign(tokens)));
+    node = node_new_assign(
+      node, node_new_arithmetic_typed(ND_ADD, node, assign(tokens)));
   else if (token_consume(tokens, string_new("-=")))
-    node =
-      node_new_assign(node, node_new_typed_cast(ND_SUB, node, assign(tokens)));
+    node = node_new_assign(
+      node, node_new_arithmetic_typed(ND_SUB, node, assign(tokens)));
   else if (token_consume(tokens, string_new("*=")))
-    node =
-      node_new_assign(node, node_new_typed_cast(ND_MUL, node, assign(tokens)));
+    node = node_new_assign(
+      node, node_new_arithmetic_typed(ND_MUL, node, assign(tokens)));
   else if (token_consume(tokens, string_new("/=")))
-    node =
-      node_new_assign(node, node_new_typed_cast(ND_DIV, node, assign(tokens)));
+    node = node_new_assign(
+      node, node_new_arithmetic_typed(ND_DIV, node, assign(tokens)));
   else if (token_consume(tokens, string_new("%=")))
-    node =
-      node_new_assign(node, node_new_typed_cast(ND_MOD, node, assign(tokens)));
+    node = node_new_assign(
+      node, node_new_arithmetic_typed(ND_MOD, node, assign(tokens)));
   else if (token_consume(tokens, string_new("&=")))
-    node =
-      node_new_assign(node, node_new_typed_cast(ND_AND, node, assign(tokens)));
+    node = node_new_assign(
+      node, node_new_arithmetic_typed(ND_AND, node, assign(tokens)));
   else if (token_consume(tokens, string_new("^=")))
-    node =
-      node_new_assign(node, node_new_typed_cast(ND_XOR, node, assign(tokens)));
+    node = node_new_assign(
+      node, node_new_arithmetic_typed(ND_XOR, node, assign(tokens)));
   else if (token_consume(tokens, string_new("|=")))
-    node =
-      node_new_assign(node, node_new_typed_cast(ND_OR, node, assign(tokens)));
+    node = node_new_assign(
+      node, node_new_arithmetic_typed(ND_OR, node, assign(tokens)));
   else if (token_consume(tokens, string_new("<<=")))
     node = node_new_assign(
-      node, node_new_typed_cast(ND_SHIFT_L, node, assign(tokens)));
+      node,
+      node_new_2op(ND_SHIFT_L,
+                   node,
+                   node_new_integer_promotion_typed(add(tokens)),
+                   node->type));
   else if (token_consume(tokens, string_new(">>=")))
     node = node_new_assign(
-      node, node_new_typed_cast(ND_SHIFT_R, node, assign(tokens)));
+      node,
+      node_new_2op(ND_SHIFT_R,
+                   node,
+                   node_new_integer_promotion_typed(add(tokens)),
+                   node->type));
   return node;
 }
 
@@ -804,10 +814,7 @@ declaration(Tokens* tokens, bool global)
       vector_push(node->argv, lvar);
 
       if (token_peek(tokens, string_new(";"))) {
-        if (global)
-          return node_new_gdeclare(lvar);
-        else
-          return node_new_ldeclare(lvar);
+        return node_new(ND_FDECLARE, type);
       }
 
       return node;
@@ -922,10 +929,14 @@ global(Tokens* tokens)
         vector_push(node->children, stmt(tokens));
       }
     }
-    node->val = program->code->size;
+    node->val = program->node->children->size;
     return node;
   }
   if (node->kind == ND_GDECLARE) {
+    token_expect(tokens, string_new(";"));
+    return node;
+  }
+  if (node->kind == ND_FDECLARE) {
     token_expect(tokens, string_new(";"));
     return node;
   }
@@ -939,23 +950,33 @@ add_node(Program* program, Tokens* tokens)
     Node* node = global(tokens);
     if (node) {
       if (node->kind == ND_FUNC) {
-        vector_push(program->code, node);
+        vector_push(program->node->children, node);
       } else if (node->kind == ND_GDECLARE) {
         vector_push(program->vars, node);
       }
     }
   }
+  node_view_tree(program->node, 0, NULL);
 }
 
 Program*
 program_new()
 {
   Program* program = calloc(1, sizeof(Program));
-  program->code = vector_new(32);
+  program->node = node_new(ND_CODE, NULL);
+  program->node->children = vector_new(32);
   program->vars = vector_new(32);
   program->strs = vector_new(32);
   program->locals = hashmap_new();
   program->globals = hashmap_new();
   program->latest_offset = 16;
   return program;
+}
+
+size_t
+program_latest_offset_aligned(Program* program, size_t align)
+{
+  if (program->latest_offset % align != 0)
+    program->latest_offset += align - program->latest_offset % align;
+  return program->latest_offset;
 }

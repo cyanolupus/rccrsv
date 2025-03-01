@@ -55,10 +55,12 @@ typedef enum
   ND_BLOCK,
   ND_CALL,
   ND_FUNC,
+  ND_FDECLARE,
   ND_LDECLARE,
   ND_GDECLARE,
   ND_AUTOCAST,
   ND_STRING,
+  ND_CODE,
 } NodeKind;
 
 typedef enum
@@ -250,7 +252,7 @@ Node*
 global(Tokens* tokens);
 
 void
-node_view_tree(Node* node, size_t depth);
+node_view_tree(Node* node, size_t depth, Node* target);
 
 // var.c
 LVar*
@@ -270,18 +272,21 @@ add_gvar(String* name, Type* type);
 
 struct Program
 {
-  Vector* code;
+  Node* node;
   Vector* vars;
   Vector* strs;
   HashMap* locals;
   HashMap* globals;
-  int latest_offset;
+  size_t latest_offset;
 };
 
 Program* program;
 
 Program*
 program_new();
+
+size_t
+program_latest_offset_aligned(Program* program, size_t align);
 
 // codegen.c
 void
@@ -309,7 +314,7 @@ Type*
 type_new(TypeKind kind, Type* ptr_to);
 
 Type*
-type_new_ptr(Type* ptr_to);
+type_new_ptr(Type ptr_to);
 
 Type*
 type_new_void();
@@ -357,19 +362,22 @@ Type*
 type_new_array(Type* ptr_to, size_t size);
 
 size_t
-type_sizeof(Type* type);
+type_sizeof(Type type);
 
 size_t
-type_sizeof_aligned(Type* type);
+type_sizeof_aligned(Type type);
 
 bool
-type_equals(Type* lhs, Type* rhs);
+type_equals(Type lhs, Type rhs);
 
-bool
-type_func_equals(Type* lhs, Type* rhs);
+Type*
+type_integer_promotion(Type type);
+
+Type*
+type_arithmetic_autocast(Type lhs, Type rhs);
 
 String*
-type_to_string(Type* type);
+type_to_string(Type type);
 
 // register.c
 const char*

@@ -1,1 +1,6 @@
-int testcase() { return sizeof(1); }
+int
+testcase()
+{
+  int x = 1;
+  return sizeof(x);
+}

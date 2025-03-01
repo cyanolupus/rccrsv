@@ -55,7 +55,8 @@ void
 token_expect(Tokens* tokens, String* op)
 {
   Token* tok = tokens_pop_front(tokens);
-  if (token_consume(tokens, op)) {
+  if (tok->kind != TK_RESERVED || !string_equals(tok->str, op)) {
+    token_view(tokens);
     fprintf(stderr, "Token is not '%s'\n", op->data);
     exit(1);
   }
@@ -77,6 +78,7 @@ token_expect_ident(Tokens* tokens)
 {
   Token* tok = tokens_pop_front(tokens);
   if (tok->kind != TK_IDENT) {
+    token_view(tokens);
     fprintf(stderr, "Token is not identifier\n");
     exit(1);
   }
@@ -88,6 +90,7 @@ token_expect_number(Tokens* tokens)
 {
   Token* tok = tokens_pop_front(tokens);
   if (tok->kind != TK_NUM) {
+    token_view(tokens);
     fprintf(stderr, "Token is not number\n");
     exit(1);
   }
@@ -146,7 +149,7 @@ token_consume_type(Tokens* tokens)
   }
 
   while (token_consume(tokens, string_new("*"))) {
-    type = type_new_ptr(type);
+    type = type_new_ptr(*type);
   }
 
   return type;
@@ -155,7 +158,6 @@ token_consume_type(Tokens* tokens)
 Type*
 token_expect_type(Tokens* tokens)
 {
-  Token* tok = tokens_peek(tokens);
   Type* type = token_consume_type(tokens);
   if (!type) {
     fprintf(stderr, "Token is not data type\n");
@@ -171,6 +173,7 @@ token_consume_str(Tokens* tokens)
   if (tok->kind != TK_STR) {
     return NULL;
   }
+  tokens->pos++;
   return string_clone(tok->str);
 }
 
@@ -183,19 +186,48 @@ token_at_eof(Tokens* tokens)
 void
 token_view(Tokens* tokens)
 {
-  const char* st = "> ";
   for (int i = 0; i < tokens->tokens->size; i++) {
-    if (i == tokens->pos)
-      fprintf(stderr, "%s", st);
-    else
-      fprintf(stderr, "  ");
     Token* tok = vector_get_token(tokens->tokens, i);
-    fprintf(stderr,
-            "kind: %d, val: %lld, str: %s\n",
-            tok->kind,
-            tok->val,
-            tok->str->data);
+    fprintf(stderr, "%s ", tok->str->data);
   }
+  fprintf(stderr, "\n");
+  for (int i = 0; i < tokens->tokens->size; i++) {
+    Token* tok = vector_get_token(tokens->tokens, i);
+    switch (tok->kind) {
+      case TK_NUM:
+        fprintf(stderr, "n");
+        break;
+      case TK_IDENT:
+        fprintf(stderr, "i");
+        break;
+      case TK_RESERVED:
+        fprintf(stderr, "r");
+        break;
+      case TK_STR:
+        fprintf(stderr, "s");
+        break;
+      case TK_EOF:
+        fprintf(stderr, "E");
+        break;
+    }
+    for (int j = 1; j < tok->str->size; j++) {
+      fprintf(stderr, "-");
+    }
+    fprintf(stderr, " ");
+  }
+  fprintf(stderr, "\n");
+  for (int i = 0; i < tokens->tokens->size; i++) {
+    Token* tok = vector_get_token(tokens->tokens, i);
+    for (int j = 0; j < tok->str->size; j++) {
+      if (tokens->pos == i) {
+        fprintf(stderr, "^");
+      } else {
+        fprintf(stderr, " ");
+      }
+    }
+    fprintf(stderr, " ");
+  }
+  fprintf(stderr, "\n");
 }
 
 Tokens*
@@ -213,6 +245,7 @@ tokenize(char* p)
       char* q = p;
       Token* tok = token_new(TK_NUM, q, p - q);
       tok->val = strtoll(p, &p, 10);
+      tok->str = string_new_with_len(q, p - q);
       vector_push(tokens->tokens, tok);
       continue;
     }

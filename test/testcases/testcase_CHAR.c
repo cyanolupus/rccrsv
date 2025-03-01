@@ -6,5 +6,5 @@ testcase()
   x[1] = 2;
   int y;
   y = 4;
-  return y + x[0];
+  return x[0] + y;
 }

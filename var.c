@@ -32,28 +32,17 @@ add_lvar(String* name, Type* type)
 {
   LVar* lvar = find_lvar(name);
   if (lvar == NULL) {
-    if (program->latest_offset % type_sizeof_aligned(type) != 0) {
-      program->latest_offset +=
-        type_sizeof_aligned(type) -
-        program->latest_offset % type_sizeof_aligned(type);
-    }
-    size_t head = program->latest_offset;
-    if (type->kind == TY_ARRAY) {
-      head += type_sizeof_aligned(type->ptr_to);
-      program->latest_offset += type_sizeof_aligned(type);
-    } else {
-      program->latest_offset += type_sizeof_aligned(type);
-      head = program->latest_offset;
-    }
-    lvar = lvar_new(name, head, type);
+    program_latest_offset_aligned(program, type_sizeof_aligned(*type));
+    program->latest_offset += type_sizeof_aligned(*type);
+    lvar = lvar_new(name, program->latest_offset, type);
     hashmap_put(program->locals, name->data, lvar);
   } else {
-    if (!type_equals(lvar->type, type)) {
+    if (!type_equals(*lvar->type, *type)) {
       fprintf(stderr,
               "conflicting types for '%s' %s vs %s\n",
               name->data,
-              type_to_string(lvar->type)->data,
-              type_to_string(type)->data);
+              type_to_string(*lvar->type)->data,
+              type_to_string(*type)->data);
       exit(1);
     }
   }
@@ -86,12 +75,12 @@ add_gvar(String* name, Type* type)
     lvar = lvar_new(name, 0, type);
     hashmap_put(program->globals, name->data, lvar);
   } else {
-    if (!type_equals(lvar->type, type)) {
+    if (!type_equals(*lvar->type, *type)) {
       fprintf(stderr,
               "conflicting types for '%s' %s vs %s\n",
               name->data,
-              type_to_string(lvar->type)->data,
-              type_to_string(type)->data);
+              type_to_string(*lvar->type)->data,
+              type_to_string(*type)->data);
       exit(1);
     }
   }
