@@ -9,6 +9,33 @@ print_help(char* argv[])
   fprintf(stderr, "  -h                Show help\n");
 }
 
+char*
+read_file(const char* path)
+{
+  FILE* fp = fopen(path, "r");
+  if (!fp) {
+    fprintf(stderr, "cannot open %s\n", path);
+    exit(1);
+  }
+  if (fseek(fp, 0, SEEK_END) == -1) {
+    fprintf(stderr, "fseek error\n");
+    exit(1);
+  }
+  size_t size = ftell(fp);
+  if (fseek(fp, 0, SEEK_SET) == -1) {
+    fprintf(stderr, "fseek error\n");
+    exit(1);
+  }
+  char* buf = calloc(1, size + 2);
+  fread(buf, size, 1, fp);
+
+  if (size == 0 || buf[size - 1] != '\n')
+    buf[size++] = '\n';
+  buf[size] = '\0';
+  fclose(fp);
+  return buf;
+}
+
 int
 main(int argc, char** argv)
 {
@@ -34,18 +61,6 @@ main(int argc, char** argv)
     }
   }
 
-  FILE* fp = fopen(input_path, "r");
-  if (!fp) {
-    fprintf(stderr, "cannot open %s\n", argv[1]);
-    exit(1);
-  }
-  fseek(fp, 0, SEEK_END);
-  size_t size = ftell(fp);
-  fseek(fp, 0, SEEK_SET);
-  char* buf = calloc(1, size + 2);
-  fread(buf, size, 1, fp);
-  fclose(fp);
-
   if (strncmp(output_path, "-", 1) == 0) {
     output_fp = stdout;
   } else {
@@ -64,6 +79,7 @@ main(int argc, char** argv)
 
   program = program_new();
 
+  char* buf = read_file(input_path);
   user_input = buf;
   Tokens* tokens = tokenize(buf);
 

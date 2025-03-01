@@ -1,11 +1,12 @@
 #include "rccrsv.h"
 
 Token*
-token_new(TokenKind kind, char* str, int len)
+token_new(TokenKind kind, char* str, int len, size_t line)
 {
   Token* tok = calloc(1, sizeof(Token));
   tok->kind = kind;
   tok->str = string_new_with_len(str, len);
+  tok->line = line;
   return tok;
 }
 
@@ -21,12 +22,21 @@ tokens_new()
 Token*
 tokens_peek(Tokens* tokens)
 {
+  if (tokens->pos >= tokens->tokens->size) {
+    fprintf(stderr, "Token is empty\n");
+    exit(1);
+  }
   return vector_get_token(tokens->tokens, tokens->pos);
 }
 
 Token*
 tokens_pop_front(Tokens* tokens)
 {
+  if (tokens->pos + 1 >= tokens->tokens->size) {
+    token_view(tokens);
+    fprintf(stderr, "Token is empty\n");
+    exit(1);
+  }
   return vector_get_token(tokens->tokens, tokens->pos++);
 }
 
@@ -186,46 +196,54 @@ token_at_eof(Tokens* tokens)
 void
 token_view(Tokens* tokens)
 {
+  size_t current_line = vector_get_token(tokens->tokens, tokens->pos)->line;
+  fprintf(stderr, "%s:%zu:\n", input_path, current_line);
   for (int i = 0; i < tokens->tokens->size; i++) {
     Token* tok = vector_get_token(tokens->tokens, i);
-    fprintf(stderr, "%s ", tok->str->data);
+    if (tok->line == current_line) {
+      fprintf(stderr, "%s ", tok->str->data);
+    }
   }
   fprintf(stderr, "\n");
   for (int i = 0; i < tokens->tokens->size; i++) {
     Token* tok = vector_get_token(tokens->tokens, i);
-    switch (tok->kind) {
-      case TK_NUM:
-        fprintf(stderr, "n");
-        break;
-      case TK_IDENT:
-        fprintf(stderr, "i");
-        break;
-      case TK_RESERVED:
-        fprintf(stderr, "r");
-        break;
-      case TK_STR:
-        fprintf(stderr, "s");
-        break;
-      case TK_EOF:
-        fprintf(stderr, "E");
-        break;
-    }
-    for (int j = 1; j < tok->str->size; j++) {
-      fprintf(stderr, "-");
-    }
-    fprintf(stderr, " ");
-  }
-  fprintf(stderr, "\n");
-  for (int i = 0; i < tokens->tokens->size; i++) {
-    Token* tok = vector_get_token(tokens->tokens, i);
-    for (int j = 0; j < tok->str->size; j++) {
-      if (tokens->pos == i) {
-        fprintf(stderr, "^");
-      } else {
-        fprintf(stderr, " ");
+    if (tok->line == current_line) {
+      switch (tok->kind) {
+        case TK_NUM:
+          fprintf(stderr, "n");
+          break;
+        case TK_IDENT:
+          fprintf(stderr, "i");
+          break;
+        case TK_RESERVED:
+          fprintf(stderr, "r");
+          break;
+        case TK_STR:
+          fprintf(stderr, "s");
+          break;
+        case TK_EOF:
+          fprintf(stderr, "E");
+          break;
       }
+      for (int j = 1; j < tok->str->size; j++) {
+        fprintf(stderr, "-");
+      }
+      fprintf(stderr, " ");
     }
-    fprintf(stderr, " ");
+  }
+  fprintf(stderr, "\n");
+  for (int i = 0; i < tokens->tokens->size; i++) {
+    Token* tok = vector_get_token(tokens->tokens, i);
+    if (tok->line == current_line) {
+      for (int j = 0; j < tok->str->size; j++) {
+        if (tokens->pos == i) {
+          fprintf(stderr, "^");
+        } else {
+          fprintf(stderr, " ");
+        }
+      }
+      fprintf(stderr, " ");
+    }
   }
   fprintf(stderr, "\n");
 }
@@ -234,8 +252,14 @@ Tokens*
 tokenize(char* p)
 {
   Tokens* tokens = tokens_new();
+  size_t line = 1;
 
   while (*p) {
+    if (*p == '\n') {
+      line++;
+      p++;
+      continue;
+    }
     if (isspace(*p)) {
       p++;
       continue;
@@ -243,7 +267,7 @@ tokenize(char* p)
 
     if (isdigit(*p)) {
       char* q = p;
-      Token* tok = token_new(TK_NUM, q, p - q);
+      Token* tok = token_new(TK_NUM, q, p - q, line);
       tok->val = strtoll(p, &p, 10);
       tok->str = string_new_with_len(q, p - q);
       vector_push(tokens->tokens, tok);
@@ -253,7 +277,7 @@ tokenize(char* p)
     if (isnondigit(*p)) {
       // data type
       if (strncmp(p, "int", 3) == 0 && !isalnum(p[3])) {
-        vector_push(tokens->tokens, token_new(TK_RESERVED, p, 3));
+        vector_push(tokens->tokens, token_new(TK_RESERVED, p, 3, line));
         p += 3;
         continue;
       }
@@ -261,33 +285,33 @@ tokenize(char* p)
       if ((strncmp(p, "void", 4) == 0 || strncmp(p, "long", 4) == 0 ||
            strncmp(p, "char", 4) == 0) &&
           !isalnum(p[4])) {
-        vector_push(tokens->tokens, token_new(TK_RESERVED, p, 4));
+        vector_push(tokens->tokens, token_new(TK_RESERVED, p, 4, line));
         p += 4;
         continue;
       }
 
       if ((strncmp(p, "float", 5) == 0 || strncmp(p, "short", 5) == 0) &&
           !isalnum(p[5])) {
-        vector_push(tokens->tokens, token_new(TK_RESERVED, p, 5));
+        vector_push(tokens->tokens, token_new(TK_RESERVED, p, 5, line));
         p += 5;
         continue;
       }
 
       if (strncmp(p, "double", 6) == 0 && !isalnum(p[6])) {
-        vector_push(tokens->tokens, token_new(TK_RESERVED, p, 6));
+        vector_push(tokens->tokens, token_new(TK_RESERVED, p, 6, line));
         p += 6;
         continue;
       }
 
       // storage class / modifier
       if (strncmp(p, "auto", 4) == 0 && !isalnum(p[4])) {
-        vector_push(tokens->tokens, token_new(TK_RESERVED, p, 4));
+        vector_push(tokens->tokens, token_new(TK_RESERVED, p, 4, line));
         p += 4;
         continue;
       }
 
       if (strncmp(p, "const", 5) == 0 && !isalnum(p[5])) {
-        vector_push(tokens->tokens, token_new(TK_RESERVED, p, 5));
+        vector_push(tokens->tokens, token_new(TK_RESERVED, p, 5, line));
         p += 5;
         continue;
       }
@@ -295,7 +319,7 @@ tokenize(char* p)
       if ((strncmp(p, "extern", 6) == 0 || strncmp(p, "static", 6) == 0 ||
            strncmp(p, "signed", 6) == 0) &&
           !isalnum(p[6])) {
-        vector_push(tokens->tokens, token_new(TK_RESERVED, p, 6));
+        vector_push(tokens->tokens, token_new(TK_RESERVED, p, 6, line));
         p += 6;
         continue;
       }
@@ -303,7 +327,7 @@ tokenize(char* p)
       if ((strncmp(p, "register", 8) == 0 || strncmp(p, "volatile", 8) == 0 ||
            strncmp(p, "unsigned", 8) == 0) &&
           !isalnum(p[8])) {
-        vector_push(tokens->tokens, token_new(TK_RESERVED, p, 8));
+        vector_push(tokens->tokens, token_new(TK_RESERVED, p, 8, line));
         p += 8;
         continue;
       }
@@ -311,13 +335,13 @@ tokenize(char* p)
       // control syntax
       if ((strncmp(p, "if", 2) == 0 || strncmp(p, "do", 2) == 0) &&
           !isalnum(p[2])) {
-        vector_push(tokens->tokens, token_new(TK_RESERVED, p, 2));
+        vector_push(tokens->tokens, token_new(TK_RESERVED, p, 2, line));
         p += 2;
         continue;
       }
 
       if (strncmp(p, "for", 3) == 0 && !isalnum(p[3])) {
-        vector_push(tokens->tokens, token_new(TK_RESERVED, p, 3));
+        vector_push(tokens->tokens, token_new(TK_RESERVED, p, 3, line));
         p += 3;
         continue;
       }
@@ -325,59 +349,59 @@ tokenize(char* p)
       if ((strncmp(p, "goto", 4) == 0 || strncmp(p, "else", 4) == 0 ||
            strncmp(p, "case", 4) == 0) &&
           !isalnum(p[4])) {
-        vector_push(tokens->tokens, token_new(TK_RESERVED, p, 4));
+        vector_push(tokens->tokens, token_new(TK_RESERVED, p, 4, line));
         p += 4;
         continue;
       }
 
       if ((strncmp(p, "break", 5) == 0 || strncmp(p, "while", 5) == 0) &&
           !isalnum(p[5])) {
-        vector_push(tokens->tokens, token_new(TK_RESERVED, p, 5));
+        vector_push(tokens->tokens, token_new(TK_RESERVED, p, 5, line));
         p += 5;
         continue;
       }
 
       if ((strncmp(p, "return", 6) == 0 || strncmp(p, "switch", 6) == 0) &&
           !isalnum(p[6])) {
-        vector_push(tokens->tokens, token_new(TK_RESERVED, p, 6));
+        vector_push(tokens->tokens, token_new(TK_RESERVED, p, 6, line));
         p += 6;
         continue;
       }
 
       if (strncmp(p, "default", 7) == 0 && !isalnum(p[7])) {
-        vector_push(tokens->tokens, token_new(TK_RESERVED, p, 7));
+        vector_push(tokens->tokens, token_new(TK_RESERVED, p, 7, line));
         p += 7;
         continue;
       }
 
       if (strncmp(p, "continue", 8) == 0 && !isalnum(p[8])) {
-        vector_push(tokens->tokens, token_new(TK_RESERVED, p, 8));
+        vector_push(tokens->tokens, token_new(TK_RESERVED, p, 8, line));
         p += 8;
         continue;
       }
 
       // type definition / type operation
       if (strncmp(p, "enum", 4) == 0 && !isalnum(p[4])) {
-        vector_push(tokens->tokens, token_new(TK_RESERVED, p, 4));
+        vector_push(tokens->tokens, token_new(TK_RESERVED, p, 4, line));
         p += 4;
         continue;
       }
 
       if (strncmp(p, "union", 5) == 0 && !isalnum(p[5])) {
-        vector_push(tokens->tokens, token_new(TK_RESERVED, p, 5));
+        vector_push(tokens->tokens, token_new(TK_RESERVED, p, 5, line));
         p += 5;
         continue;
       }
 
       if ((strncmp(p, "struct", 6) == 0 || strncmp(p, "sizeof", 6) == 0) &&
           !isalnum(p[6])) {
-        vector_push(tokens->tokens, token_new(TK_RESERVED, p, 6));
+        vector_push(tokens->tokens, token_new(TK_RESERVED, p, 6, line));
         p += 6;
         continue;
       }
 
       if (strncmp(p, "typedef", 7) == 0 && !isalnum(p[7])) {
-        vector_push(tokens->tokens, token_new(TK_RESERVED, p, 7));
+        vector_push(tokens->tokens, token_new(TK_RESERVED, p, 7, line));
         p += 7;
         continue;
       }
@@ -385,12 +409,12 @@ tokenize(char* p)
       char* q = p;
       while (isnondigit(*p) || isdigit(*p))
         p++;
-      vector_push(tokens->tokens, token_new(TK_IDENT, q, p - q));
+      vector_push(tokens->tokens, token_new(TK_IDENT, q, p - q, line));
       continue;
     }
 
     if (strncmp(p, "<<=", 3) == 0 || strncmp(p, ">>=", 3) == 0) {
-      vector_push(tokens->tokens, token_new(TK_RESERVED, p, 3));
+      vector_push(tokens->tokens, token_new(TK_RESERVED, p, 3, line));
       p += 3;
       continue;
     }
@@ -405,13 +429,13 @@ tokenize(char* p)
         strncmp(p, "&&", 2) == 0 || strncmp(p, ">>", 2) == 0 ||
         strncmp(p, "<<", 2) == 0 || strncmp(p, "++", 2) == 0 ||
         strncmp(p, "--", 2) == 0) {
-      vector_push(tokens->tokens, token_new(TK_RESERVED, p, 2));
+      vector_push(tokens->tokens, token_new(TK_RESERVED, p, 2, line));
       p += 2;
       continue;
     }
 
     if (strchr("+-*/%()<>=,&^|!~.[];{}:?", *p)) {
-      vector_push(tokens->tokens, token_new(TK_RESERVED, p++, 1));
+      vector_push(tokens->tokens, token_new(TK_RESERVED, p++, 1, line));
       continue;
     }
 
@@ -419,7 +443,7 @@ tokenize(char* p)
       char* q = ++p;
       while (*p != '"')
         p++;
-      vector_push(tokens->tokens, token_new(TK_STR, q, p - q));
+      vector_push(tokens->tokens, token_new(TK_STR, q, p - q, line));
       p++;
       continue;
     }
@@ -428,6 +452,6 @@ tokenize(char* p)
     exit(1);
   }
 
-  vector_push(tokens->tokens, token_new(TK_EOF, p, 0));
+  vector_push(tokens->tokens, token_new(TK_EOF, p, 0, line));
   return tokens;
 }

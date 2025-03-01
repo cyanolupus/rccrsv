@@ -176,6 +176,7 @@ struct Token
   TokenKind kind;
   long long val;
   String* str;
+  size_t line;
 };
 
 struct Tokens
