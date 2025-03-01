@@ -277,6 +277,11 @@ gen_func(Node* node)
   for (int i = 0; i < node->children->size; i++) {
     gen_stmt(vector_get_node(node->children, i));
   }
+
+  writer("  add sp, sp, #%lu\n", program->latest_offset);
+  writer("  mov sp, fp\n");
+  writer("  ldp fp, lr, [sp], #16\n");
+  writer("  ret\n");
 }
 
 void
