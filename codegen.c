@@ -189,7 +189,8 @@ void
 gen_return(Node* node)
 {
   gen(vector_get_node(node->children, 0));
-  writer("  add sp, sp, #%lu\n", program->latest_offset);
+  writer("  add sp, sp, #%lu\n",
+         scope_set_latest_offset_aligned(node->scope, 16));
   writer("  mov sp, fp\n");
   writer("  ldp fp, lr, [sp], #16\n");
   writer("  ret\n");
@@ -259,10 +260,12 @@ gen_func(Node* node)
 {
   LVar* func = vector_get_lvar(node->argv, node->argv->size - 1);
   writer("  .globl _%s\n", func->name->data);
+  writer("  .p2align 2\n");
   writer("_%s:\n", func->name->data);
   writer("  stp fp, lr, [sp, #-16]!\n");
   writer("  mov fp, sp\n");
-  writer("  sub sp, sp, #%lu\n", program_latest_offset_aligned(program, 16));
+  writer("  sub sp, sp, #%lu\n",
+         scope_set_latest_offset_aligned(node->scope, 16));
 
   const char* r9 = rn(9, 8);
   for (int i = 0; i < node->argv->size - 1; i++) {
@@ -278,10 +281,11 @@ gen_func(Node* node)
     gen_stmt(vector_get_node(node->children, i));
   }
 
-  writer("  add sp, sp, #%lu\n", program->latest_offset);
+  writer("  add sp, sp, #%lu\n",
+         scope_set_latest_offset_aligned(node->scope, 16));
   writer("  mov sp, fp\n");
   writer("  ldp fp, lr, [sp], #16\n");
-  writer("  ret\n");
+  writer("  ret\n\n");
 }
 
 void
@@ -305,7 +309,6 @@ gen_2op(Node* node)
   Node* rhs = vector_get_node(node->children, 1);
 
   const char* r0 = rn(0, reg_size(*node->type));
-  const char* r_r9 = rn(9, reg_size(*rhs->type));
   const char* r9 = rn(9, reg_size(*node->type));
   const char* r10 = rn(10, reg_size(*node->type));
 
@@ -805,7 +808,6 @@ gen_code(Program* program)
     gen_stmt(vector_get_node(program->vars, i));
   }
   writer("  .section __TEXT,__text,regular,pure_instructions\n");
-  writer("  .p2align 2\n");
   for (int i = 0; i < program->node->children->size; i++) {
     gen_stmt(vector_get_node(program->node->children, i));
   }

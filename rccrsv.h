@@ -90,9 +90,11 @@ typedef struct String String;
 
 typedef struct Token Token;
 typedef struct Tokens Tokens;
-typedef struct LVar LVar;
 typedef struct Node Node;
 typedef struct Program Program;
+
+typedef struct LVar LVar;
+typedef struct Scope Scope;
 
 typedef struct Type Type;
 
@@ -223,13 +225,6 @@ token_view(Tokens* self);
 
 // parse.c
 
-struct LVar
-{
-  String* name;
-  size_t offset;
-  Type* type;
-};
-
 struct Node
 {
   NodeKind kind;
@@ -237,6 +232,7 @@ struct Node
   Vector* locals;
   Vector* argv;
   Type* type;
+  Scope* scope;
   unsigned long long val;
 };
 
@@ -244,41 +240,20 @@ Node*
 node_new_lvar(LVar* lvar);
 
 Node*
-expr(Tokens* self);
+expr(Tokens* self, Scope* scope);
 
 void
 add_node(Program* program, Tokens* tokens);
 
-Node*
-global(Tokens* tokens);
-
 void
 node_view_tree(Node* node, size_t depth, Node* target);
-
-// var.c
-LVar*
-lvar_new(String* name, int offset, Type* type);
-
-LVar*
-expect_var(String* name);
-
-LVar*
-expect_lvar(String* name);
-
-LVar*
-add_lvar(String* name, Type* type);
-
-LVar*
-add_gvar(String* name, Type* type);
 
 struct Program
 {
   Node* node;
   Vector* vars;
   Vector* strs;
-  HashMap* locals;
   HashMap* globals;
-  size_t latest_offset;
 };
 
 Program* program;
@@ -287,7 +262,50 @@ Program*
 program_new();
 
 size_t
-program_latest_offset_aligned(Program* program, size_t align);
+scope_set_latest_offset_aligned(Scope* scope, size_t align);
+
+// var.c
+
+struct LVar
+{
+  String* name;
+  size_t offset;
+  Type* type;
+};
+
+LVar*
+lvar_new(String* name, int offset, Type* type);
+
+LVar*
+add_gvar(String* name, Type* type);
+
+struct Scope
+{
+  HashMap* vars;
+  Scope* parent;
+  size_t latest_offset;
+};
+
+Scope*
+scope_new(Scope* parent);
+
+Scope*
+scope_parent(Scope* scope);
+
+Scope*
+scope_root();
+
+LVar*
+scope_find_lvar(Scope* scope, String* name);
+
+LVar*
+scope_expect_lvar(Scope* scope, String* name);
+
+LVar*
+scope_add_lvar(Scope* scope, String* name, Type* type);
+
+LVar*
+scope_expect_var(Scope* scope, String* name);
 
 // codegen.c
 void

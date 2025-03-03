@@ -10,16 +10,73 @@ lvar_new(String* name, int offset, Type* type)
   return lvar;
 }
 
-LVar*
-find_lvar(String* name)
+Scope*
+scope_new(Scope* parent)
 {
-  return hashmap_get(program->locals, name->data);
+  Scope* scope = calloc(1, sizeof(Scope));
+  scope->vars = hashmap_new();
+  scope->parent = parent;
+  return scope;
+}
+
+Scope*
+scope_parent(Scope* scope)
+{
+  return scope->parent;
+}
+
+Scope*
+scope_root()
+{
+  Scope* scope = scope_new(NULL);
+  scope->latest_offset = 0;
+  return scope;
+}
+
+size_t
+scope_get_latest_offset(Scope* scope)
+{
+  while (scope->parent) {
+    scope = scope->parent;
+  }
+  return scope->latest_offset;
+}
+
+size_t
+scope_add_latest_offset(Scope* scope, size_t size)
+{
+  while (scope->parent) {
+    scope = scope->parent;
+  }
+  scope->latest_offset += size;
+  return scope->latest_offset;
+}
+
+size_t
+scope_set_latest_offset_aligned(Scope* scope, size_t align)
+{
+  size_t offset = scope_get_latest_offset(scope);
+  return (offset + align - 1) / align * align;
 }
 
 LVar*
-expect_lvar(String* name)
+scope_find_lvar(Scope* scope, String* name)
 {
-  LVar* lvar = find_lvar(name);
+  Scope* current = scope;
+  while (current) {
+    LVar* lvar = hashmap_get(current->vars, name->data);
+    if (lvar) {
+      return lvar;
+    }
+    current = current->parent;
+  }
+  return NULL;
+}
+
+LVar*
+scope_expect_lvar(Scope* scope, String* name)
+{
+  LVar* lvar = scope_find_lvar(scope, name);
   if (!lvar) {
     fprintf(stderr, "undefined variable: %s\n", name->data);
     exit(1);
@@ -28,14 +85,14 @@ expect_lvar(String* name)
 }
 
 LVar*
-add_lvar(String* name, Type* type)
+scope_add_lvar(Scope* scope, String* name, Type* type)
 {
-  LVar* lvar = find_lvar(name);
-  if (lvar == NULL) {
-    program_latest_offset_aligned(program, type_sizeof_aligned(*type));
-    program->latest_offset += type_sizeof_aligned(*type);
-    lvar = lvar_new(name, program->latest_offset, type);
-    hashmap_put(program->locals, name->data, lvar);
+  LVar* lvar = hashmap_get(scope->vars, name->data);
+  if (!lvar) {
+    scope_set_latest_offset_aligned(scope, type_sizeof_aligned(*type));
+    scope_add_latest_offset(scope, type_sizeof_aligned(*type));
+    lvar = lvar_new(name, scope_get_latest_offset(scope), type);
+    hashmap_put(scope->vars, name->data, lvar);
   } else {
     if (!type_equals(*lvar->type, *type)) {
       fprintf(stderr,
@@ -89,9 +146,9 @@ add_gvar(String* name, Type* type)
 }
 
 LVar*
-expect_var(String* name)
+scope_expect_var(Scope* scope, String* name)
 {
-  LVar* lvar = find_lvar(name);
+  LVar* lvar = scope_find_lvar(scope, name);
   if (!lvar) {
     lvar = find_gvar(name);
   }

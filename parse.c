@@ -1,4 +1,5 @@
 #include "rccrsv.h"
+#include <stdio.h>
 
 String*
 node_kind_to_string(Node* node)
@@ -176,6 +177,7 @@ node_new_func()
   node->val = 0;
   node->argv = vector_new(8);
   node->children = vector_new(8);
+  node->scope = scope_root();
   return node;
 }
 
@@ -429,7 +431,7 @@ node_view_tree(Node* node, size_t depth, Node* target)
 }
 
 Node*
-primary(Tokens* tokens)
+primary(Tokens* tokens, Scope* scope)
 {
   String* str = token_consume_str(tokens);
   if (str) {
@@ -439,13 +441,13 @@ primary(Tokens* tokens)
 
   String* name = token_consume_ident(tokens);
   if (name) {
-    LVar* lvar = expect_var(name);
+    LVar* lvar = scope_expect_var(scope, name);
     if (token_consume(tokens, string_new("("))) {
       Node* node = node_new_call(lvar);
       while (!token_consume(tokens, string_new(")"))) {
         if (node->children->size > 0)
           token_expect(tokens, string_new(","));
-        vector_push(node->children, expr(tokens));
+        vector_push(node->children, expr(tokens, scope));
       }
       return node;
     }
@@ -453,7 +455,7 @@ primary(Tokens* tokens)
     if ((lvar->type->kind == TY_ARRAY || lvar->type->kind == TY_PTR) &&
         token_consume(tokens, string_new("["))) {
       Node* node = node_new_var(lvar);
-      Node* offset = expr(tokens);
+      Node* offset = expr(tokens, scope);
       token_expect(tokens, string_new("]"));
       return node_new_1op(ND_DEREF,
                           node_new_arithmetic_typed(ND_ADD, node, offset),
@@ -482,7 +484,7 @@ primary(Tokens* tokens)
   }
 
   if (token_consume(tokens, string_new("("))) {
-    Node* node = expr(tokens);
+    Node* node = expr(tokens, scope);
     token_expect(tokens, string_new(")"));
     return node;
   }
@@ -490,7 +492,7 @@ primary(Tokens* tokens)
   int num = token_expect_number(tokens);
   if (token_consume(tokens, string_new("["))) {
     Node* offset = node_new_number(num);
-    Node* node = expr(tokens);
+    Node* node = expr(tokens, scope);
     if (node->type->kind != TY_PTR && node->type->kind != TY_ARRAY) {
       fprintf(stderr,
               "Dereference of non-pointer type: %s\n",
@@ -507,11 +509,11 @@ primary(Tokens* tokens)
 }
 
 Node*
-unary(Tokens* tokens)
+unary(Tokens* tokens, Scope* scope)
 {
   if (token_consume(tokens, string_new("++"))) {
     String* name = token_expect_ident(tokens);
-    LVar* lvar = expect_var(name);
+    LVar* lvar = scope_expect_var(scope, name);
     Node* add =
       node_new_arithmetic_typed(ND_ADD, node_new_var(lvar), node_new_number(1));
     Node* assign = node_new_assign(node_new_var(lvar), add);
@@ -519,26 +521,26 @@ unary(Tokens* tokens)
   }
   if (token_consume(tokens, string_new("--"))) {
     String* name = token_expect_ident(tokens);
-    LVar* lvar = expect_var(name);
+    LVar* lvar = scope_expect_var(scope, name);
     Node* sub =
       node_new_arithmetic_typed(ND_SUB, node_new_var(lvar), node_new_number(1));
     Node* assign = node_new_assign(node_new_var(lvar), sub);
     return assign;
   }
   if (token_consume(tokens, string_new("+")))
-    return primary(tokens);
+    return primary(tokens, scope);
   if (token_consume(tokens, string_new("-"))) {
     return node_new_arithmetic_typed(
-      ND_SUB, node_new_number(0), primary(tokens));
+      ND_SUB, node_new_number(0), primary(tokens, scope));
   }
   if (token_consume(tokens, string_new("!")))
-    return node_new_1op(ND_LNOT, primary(tokens), type_new_isize());
+    return node_new_1op(ND_LNOT, primary(tokens, scope), type_new_isize());
   if (token_consume(tokens, string_new("~"))) {
-    Node* node = node_new_integer_promotion_typed(primary(tokens));
+    Node* node = node_new_integer_promotion_typed(primary(tokens, scope));
     return node_new_1op(ND_NOT, node, node->type);
   }
   if (token_consume(tokens, string_new("*"))) {
-    Node* node = unary(tokens);
+    Node* node = unary(tokens, scope);
     if (node->type->ptr_to == NULL) {
       fprintf(stderr,
               "Dereference of non-pointer type: %s\n",
@@ -548,44 +550,44 @@ unary(Tokens* tokens)
     return node_new_1op(ND_DEREF, node, node->type->ptr_to);
   }
   if (token_consume(tokens, string_new("&"))) {
-    Node* node = unary(tokens);
+    Node* node = unary(tokens, scope);
     return node_new_1op(ND_REF, node, type_new_ptr(*node->type));
   }
   if (token_consume(tokens, string_new("sizeof")))
-    return node_new_1op(ND_SIZEOF, unary(tokens), type_new_usize());
-  return primary(tokens);
+    return node_new_1op(ND_SIZEOF, unary(tokens, scope), type_new_usize());
+  return primary(tokens, scope);
 }
 
 Node*
-mul(Tokens* tokens)
+mul(Tokens* tokens, Scope* scope)
 {
-  Node* node = unary(tokens);
+  Node* node = unary(tokens, scope);
 
   for (;;) {
     if (token_consume(tokens, string_new("*")))
-      node = node_new_arithmetic_typed(ND_MUL, node, unary(tokens));
+      node = node_new_arithmetic_typed(ND_MUL, node, unary(tokens, scope));
     else if (token_consume(tokens, string_new("/")))
-      node = node_new_arithmetic_typed(ND_DIV, node, unary(tokens));
+      node = node_new_arithmetic_typed(ND_DIV, node, unary(tokens, scope));
     else if (token_consume(tokens, string_new("%")))
-      node = node_new_arithmetic_typed(ND_MOD, node, unary(tokens));
+      node = node_new_arithmetic_typed(ND_MOD, node, unary(tokens, scope));
     else
       return node;
   }
 }
 
 Node*
-add(Tokens* tokens)
+add(Tokens* tokens, Scope* scope)
 {
-  Node* node = mul(tokens);
+  Node* node = mul(tokens, scope);
   for (;;) {
     if (token_consume(tokens, string_new("+"))) {
-      Node* rhs = mul(tokens);
+      Node* rhs = mul(tokens, scope);
       if (rhs->type->kind == TY_PTR)
         return node_new_arithmetic_typed(ND_ADD, rhs, node);
       else
         return node_new_arithmetic_typed(ND_ADD, node, rhs);
     } else if (token_consume(tokens, string_new("-"))) {
-      Node* rhs = mul(tokens);
+      Node* rhs = mul(tokens, scope);
       if (rhs->type->kind == TY_PTR)
         return node_new_arithmetic_typed(ND_SUB, rhs, node);
       else
@@ -597,20 +599,20 @@ add(Tokens* tokens)
 }
 
 Node*
-shift(Tokens* tokens)
+shift(Tokens* tokens, Scope* scope)
 {
-  Node* node = add(tokens);
+  Node* node = add(tokens, scope);
 
   for (;;) {
     if (token_consume(tokens, string_new("<<")))
       node = node_new_2op(ND_SHIFT_L,
                           node,
-                          node_new_integer_promotion_typed(add(tokens)),
+                          node_new_integer_promotion_typed(add(tokens, scope)),
                           node->type);
     else if (token_consume(tokens, string_new(">>")))
       node = node_new_2op(ND_SHIFT_R,
                           node,
-                          node_new_integer_promotion_typed(add(tokens)),
+                          node_new_integer_promotion_typed(add(tokens, scope)),
                           node->type);
     else
       return node;
@@ -618,117 +620,122 @@ shift(Tokens* tokens)
 }
 
 Node*
-relational(Tokens* tokens)
+relational(Tokens* tokens, Scope* scope)
 {
-  Node* node = shift(tokens);
+  Node* node = shift(tokens, scope);
 
   for (;;) {
     if (token_consume(tokens, string_new("<")))
-      return node_new_arithmetic(ND_LT, node, shift(tokens), type_new_isize());
+      return node_new_arithmetic(
+        ND_LT, node, shift(tokens, scope), type_new_isize());
     else if (token_consume(tokens, string_new("<=")))
-      return node_new_arithmetic(ND_LE, node, shift(tokens), type_new_isize());
+      return node_new_arithmetic(
+        ND_LE, node, shift(tokens, scope), type_new_isize());
     else if (token_consume(tokens, string_new(">")))
-      return node_new_arithmetic(ND_LT, shift(tokens), node, type_new_isize());
+      return node_new_arithmetic(
+        ND_LT, shift(tokens, scope), node, type_new_isize());
     else if (token_consume(tokens, string_new(">=")))
-      return node_new_arithmetic(ND_LE, shift(tokens), node, type_new_isize());
+      return node_new_arithmetic(
+        ND_LE, shift(tokens, scope), node, type_new_isize());
     else
       return node;
   }
 }
 
 Node*
-equality(Tokens* tokens)
+equality(Tokens* tokens, Scope* scope)
 {
-  Node* node = relational(tokens);
+  Node* node = relational(tokens, scope);
 
   for (;;) {
     if (token_consume(tokens, string_new("==")))
       return node_new_arithmetic(
-        ND_EQ, node, relational(tokens), type_new_isize());
+        ND_EQ, node, relational(tokens, scope), type_new_isize());
     else if (token_consume(tokens, string_new("!=")))
       return node_new_arithmetic(
-        ND_NE, node, relational(tokens), type_new_isize());
+        ND_NE, node, relational(tokens, scope), type_new_isize());
     else
       return node;
   }
 }
 
 Node*
-bitwise_and(Tokens* tokens)
+bitwise_and(Tokens* tokens, Scope* scope)
 {
-  Node* node = equality(tokens);
+  Node* node = equality(tokens, scope);
 
   for (;;) {
     if (token_consume(tokens, string_new("&")))
-      node = node_new_arithmetic_typed(ND_AND, node, equality(tokens));
+      node = node_new_arithmetic_typed(ND_AND, node, equality(tokens, scope));
     else
       return node;
   }
 }
 
 Node*
-bitwise_xor(Tokens* tokens)
+bitwise_xor(Tokens* tokens, Scope* scope)
 {
-  Node* node = bitwise_and(tokens);
+  Node* node = bitwise_and(tokens, scope);
 
   for (;;) {
     if (token_consume(tokens, string_new("^")))
-      node = node_new_arithmetic_typed(ND_XOR, node, bitwise_and(tokens));
+      node =
+        node_new_arithmetic_typed(ND_XOR, node, bitwise_and(tokens, scope));
     else
       return node;
   }
 }
 
 Node*
-bitwise_or(Tokens* tokens)
+bitwise_or(Tokens* tokens, Scope* scope)
 {
-  Node* node = bitwise_xor(tokens);
+  Node* node = bitwise_xor(tokens, scope);
 
   for (;;) {
     if (token_consume(tokens, string_new("|")))
-      node = node_new_arithmetic_typed(ND_OR, node, bitwise_xor(tokens));
+      node = node_new_arithmetic_typed(ND_OR, node, bitwise_xor(tokens, scope));
     else
       return node;
   }
 }
 
 Node*
-logical_and(Tokens* tokens)
+logical_and(Tokens* tokens, Scope* scope)
 {
-  Node* node = bitwise_or(tokens);
+  Node* node = bitwise_or(tokens, scope);
 
   for (;;) {
     if (token_consume(tokens, string_new("&&")))
-      node =
-        node_new_arithmetic(ND_AND, node, bitwise_or(tokens), type_new_isize());
+      node = node_new_arithmetic(
+        ND_AND, node, bitwise_or(tokens, scope), type_new_isize());
     else
       return node;
   }
 }
 
 Node*
-logical_or(Tokens* tokens)
+logical_or(Tokens* tokens, Scope* scope)
 {
-  Node* node = logical_and(tokens);
+  Node* node = logical_and(tokens, scope);
 
   for (;;) {
     if (token_consume(tokens, string_new("||")))
-      node =
-        node_new_arithmetic(ND_OR, node, logical_and(tokens), type_new_isize());
+      node = node_new_arithmetic(
+        ND_OR, node, logical_and(tokens, scope), type_new_isize());
     else
       return node;
   }
 }
 
 Node*
-conditional(Tokens* tokens)
+conditional(Tokens* tokens, Scope* scope)
 {
-  Node* node = logical_or(tokens);
+  Node* node = logical_or(tokens, scope);
 
   if (token_consume(tokens, string_new("?"))) {
-    Node* then = conditional(tokens);
+    Node* then = conditional(tokens, scope);
     token_expect(tokens, string_new(":"));
-    Node* els = conditional(tokens);
+    Node* els = conditional(tokens, scope);
     Type* type = type_arithmetic_autocast(*then->type, *els->type);
     return node_new_if(
       node, node_new_autocast(then, type), node_new_autocast(els, type), type);
@@ -737,55 +744,55 @@ conditional(Tokens* tokens)
 }
 
 Node*
-assign(Tokens* tokens)
+assign(Tokens* tokens, Scope* scope)
 {
-  Node* node = conditional(tokens);
+  Node* node = conditional(tokens, scope);
 
   if (token_consume(tokens, string_new("=")))
-    node = node_new_assign(node, assign(tokens));
+    node = node_new_assign(node, assign(tokens, scope));
   else if (token_consume(tokens, string_new("+=")))
     node = node_new_assign(
-      node, node_new_arithmetic_typed(ND_ADD, node, assign(tokens)));
+      node, node_new_arithmetic_typed(ND_ADD, node, assign(tokens, scope)));
   else if (token_consume(tokens, string_new("-=")))
     node = node_new_assign(
-      node, node_new_arithmetic_typed(ND_SUB, node, assign(tokens)));
+      node, node_new_arithmetic_typed(ND_SUB, node, assign(tokens, scope)));
   else if (token_consume(tokens, string_new("*=")))
     node = node_new_assign(
-      node, node_new_arithmetic_typed(ND_MUL, node, assign(tokens)));
+      node, node_new_arithmetic_typed(ND_MUL, node, assign(tokens, scope)));
   else if (token_consume(tokens, string_new("/=")))
     node = node_new_assign(
-      node, node_new_arithmetic_typed(ND_DIV, node, assign(tokens)));
+      node, node_new_arithmetic_typed(ND_DIV, node, assign(tokens, scope)));
   else if (token_consume(tokens, string_new("%=")))
     node = node_new_assign(
-      node, node_new_arithmetic_typed(ND_MOD, node, assign(tokens)));
+      node, node_new_arithmetic_typed(ND_MOD, node, assign(tokens, scope)));
   else if (token_consume(tokens, string_new("&=")))
     node = node_new_assign(
-      node, node_new_arithmetic_typed(ND_AND, node, assign(tokens)));
+      node, node_new_arithmetic_typed(ND_AND, node, assign(tokens, scope)));
   else if (token_consume(tokens, string_new("^=")))
     node = node_new_assign(
-      node, node_new_arithmetic_typed(ND_XOR, node, assign(tokens)));
+      node, node_new_arithmetic_typed(ND_XOR, node, assign(tokens, scope)));
   else if (token_consume(tokens, string_new("|=")))
     node = node_new_assign(
-      node, node_new_arithmetic_typed(ND_OR, node, assign(tokens)));
+      node, node_new_arithmetic_typed(ND_OR, node, assign(tokens, scope)));
   else if (token_consume(tokens, string_new("<<=")))
     node = node_new_assign(
       node,
       node_new_2op(ND_SHIFT_L,
                    node,
-                   node_new_integer_promotion_typed(add(tokens)),
+                   node_new_integer_promotion_typed(assign(tokens, scope)),
                    node->type));
   else if (token_consume(tokens, string_new(">>=")))
     node = node_new_assign(
       node,
       node_new_2op(ND_SHIFT_R,
                    node,
-                   node_new_integer_promotion_typed(add(tokens)),
+                   node_new_integer_promotion_typed(assign(tokens, scope)),
                    node->type));
   return node;
 }
 
 Node*
-declaration(Tokens* tokens, bool global)
+declaration(Tokens* tokens, bool global, Scope* scope)
 {
   Type* type = token_consume_type(tokens);
   if (type) {
@@ -805,11 +812,11 @@ declaration(Tokens* tokens, bool global)
         Type* arg_type = token_expect_type(tokens);
         vector_push(type->args, arg_type);
         String* arg_name = token_expect_ident(tokens);
-        LVar* arg_lvar = add_lvar(arg_name, arg_type);
+        LVar* arg_lvar = scope_add_lvar(node->scope, arg_name, arg_type);
         vector_push(node->argv, arg_lvar);
       }
 
-      lvar = add_lvar(name, type);
+      lvar = add_gvar(name, type);
       node->type = type;
       vector_push(node->argv, lvar);
 
@@ -822,7 +829,7 @@ declaration(Tokens* tokens, bool global)
       int size = token_expect_number(tokens);
       token_expect(tokens, string_new("]"));
       type = type_new_array(type, size);
-      lvar = global ? add_gvar(name, type) : add_lvar(name, type);
+      lvar = global ? add_gvar(name, type) : scope_add_lvar(scope, name, type);
       if (token_peek(tokens, string_new(";"))) {
         if (global)
           return node_new_gdeclare(lvar);
@@ -830,7 +837,7 @@ declaration(Tokens* tokens, bool global)
           return node_new_ldeclare(lvar);
       }
     } else {
-      lvar = global ? add_gvar(name, type) : add_lvar(name, type);
+      lvar = global ? add_gvar(name, type) : scope_add_lvar(scope, name, type);
       if (token_peek(tokens, string_new(";"))) {
         if (global)
           return node_new_gdeclare(lvar);
@@ -844,7 +851,7 @@ declaration(Tokens* tokens, bool global)
         return node_new_gdeclare_with_init(
           lvar, node_new_const(token_expect_number(tokens), lvar->type));
       } else
-        return node_new_ldeclare_with_init(lvar, assign(tokens));
+        return node_new_ldeclare_with_init(lvar, assign(tokens, scope));
     }
   }
 
@@ -852,69 +859,86 @@ declaration(Tokens* tokens, bool global)
 }
 
 Node*
-expr(Tokens* tokens)
+expr(Tokens* tokens, Scope* scope)
 {
-  Node* node = declaration(tokens, false);
+  Node* node = declaration(tokens, false, scope);
   if (node) {
     return node;
   }
 
   if (token_consume(tokens, string_new("return"))) {
-    Node* node = expr(tokens);
-    return node_new_1op(ND_RETURN, node, node->type);
+    Node* node = expr(tokens, scope);
+    Node* return_node = node_new_1op(ND_RETURN, node, node->type);
+    return_node->scope = scope;
+    return return_node;
   }
-  return assign(tokens);
+  return assign(tokens, scope);
 }
 
 Node*
-stmt(Tokens* tokens)
+stmt(Tokens* tokens, Scope* scope)
 {
   if (token_consume(tokens, string_new("if"))) {
+    scope = scope_new(scope);
     token_expect(tokens, string_new("("));
-    Node* cond = expr(tokens);
+    Node* cond = expr(tokens, scope);
     token_expect(tokens, string_new(")"));
-    Node* then = stmt(tokens);
+    scope = scope_new(scope);
+    Node* then = stmt(tokens, scope);
+    scope = scope_parent(scope);
+    scope = scope_new(scope);
     Node* els = NULL;
     if (token_consume(tokens, string_new("else")))
-      els = stmt(tokens);
+      els = stmt(tokens, scope);
+    scope = scope_parent(scope);
+    scope = scope_parent(scope);
     return node_new_if(cond, then, els, NULL);
   }
   if (token_consume(tokens, string_new("while"))) {
     token_expect(tokens, string_new("("));
     Node* cond = NULL;
+    scope = scope_new(scope);
     if (!token_consume(tokens, string_new(")"))) {
-      cond = expr(tokens);
+      cond = expr(tokens, scope);
       token_expect(tokens, string_new(")"));
     }
-    Node* body = stmt(tokens);
+    scope = scope_new(scope);
+    Node* body = stmt(tokens, scope);
+    scope = scope_parent(scope);
     return node_new_for(NULL, cond, NULL, body);
   }
   if (token_consume(tokens, string_new("for"))) {
-    Node *init = NULL, *cond = NULL, *inc = NULL;
+    Node* init = NULL;
+    Node* cond = NULL;
+    Node* inc = NULL;
+    scope = scope_new(scope);
     token_expect(tokens, string_new("("));
     if (!token_consume(tokens, string_new(";"))) {
-      init = expr(tokens);
+      init = expr(tokens, scope);
       token_expect(tokens, string_new(";"));
     }
     if (!token_consume(tokens, string_new(";"))) {
-      cond = expr(tokens);
+      cond = expr(tokens, scope);
       token_expect(tokens, string_new(";"));
     }
     if (!token_consume(tokens, string_new(")"))) {
-      inc = expr(tokens);
+      inc = expr(tokens, scope);
       token_expect(tokens, string_new(")"));
     }
-    Node* body = stmt(tokens);
+    Node* body = stmt(tokens, scope);
+    scope = scope_parent(scope);
     return node_new_for(init, cond, inc, body);
   }
   if (token_consume(tokens, string_new("{"))) {
+    scope = scope_new(scope);
     Node* node = node_new_block();
     while (!token_consume(tokens, string_new("}"))) {
-      vector_push(node->children, stmt(tokens));
+      vector_push(node->children, stmt(tokens, scope));
     }
+    scope = scope_parent(scope);
     return node;
   }
-  Node* node = expr(tokens);
+  Node* node = expr(tokens, scope);
   token_expect(tokens, string_new(";"));
   return node;
 }
@@ -922,11 +946,11 @@ stmt(Tokens* tokens)
 Node*
 global(Tokens* tokens)
 {
-  Node* node = declaration(tokens, true);
+  Node* node = declaration(tokens, true, NULL);
   if (node->kind == ND_FUNC) {
     if (token_consume(tokens, string_new("{"))) {
       while (!token_consume(tokens, string_new("}"))) {
-        vector_push(node->children, stmt(tokens));
+        vector_push(node->children, stmt(tokens, node->scope));
       }
     }
     node->val = program->node->children->size;
@@ -967,16 +991,6 @@ program_new()
   program->node->children = vector_new(32);
   program->vars = vector_new(32);
   program->strs = vector_new(32);
-  program->locals = hashmap_new();
   program->globals = hashmap_new();
-  program->latest_offset = 16;
   return program;
-}
-
-size_t
-program_latest_offset_aligned(Program* program, size_t align)
-{
-  if (program->latest_offset % align != 0)
-    program->latest_offset += align - program->latest_offset % align;
-  return program->latest_offset;
 }
