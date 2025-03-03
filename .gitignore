@@ -5,3 +5,5 @@ tmp*
 a.out
 rccrsv
 .vscode/
+rccrsv_test
+.ignore_*
